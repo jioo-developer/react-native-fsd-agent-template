@@ -43,6 +43,7 @@ React Native + Expo template with **Feature-Sliced Design (FSD)** architecture a
 | `toISOString().split('T')[0]`로 로컬 날짜 구하기 | **0개** |
 | 토큰/시크릿이 AsyncStorage·MMKV·평문에 저장됨 | **0개** |
 | 평점 요청이 정책 엔진(`canRequestReview`) 미경유 | **0개** |
+| 평점 요청 시 `uiIsIdle` 게이트 누락 / 자체 사전 프롬프트 사용 | **0개** |
 
 ### Secure Storage / 민감 데이터 저장 (MANDATORY)
 
@@ -429,9 +430,9 @@ npx expo install expo-store-review
 
 ### 플랫폼 한계 (알고 시작해야 한다)
 
-- **iOS**: `SKStoreReviewController.requestReview()`는 시스템이 1년에 최대 **3회**까지만 실제로 표시한다. 개발자가 호출해도 실제 노출은 시스템이 판단. 이미 평점을 남긴 사용자에게는 띄우지 않음.
-- **Android**: Play In-App Review API도 자체 쿼터가 있어 너무 자주 호출하면 무시됨.
-- 두 플랫폼 모두 **호출 자체에 비용은 없지만**, 정책 엔진으로 호출 자체를 줄여야 의미 있는 표시 기회를 보존할 수 있다.
+- **iOS (`SKStoreReviewController.requestReview()`)**: 시스템이 **365일 윈도우 내 최대 3회**까지만 실제 다이얼로그를 노출한다. 초과 호출은 **에러 없이 조용히 무시**되므로 "표시되었는지" 알 길이 없다. HIG: "앱 실행 직후나 작업 도중에 묻지 말 것".
+- **Android (Play In-App Review API)**: Google이 자체 쿼터를 관리하며 앱은 쿼터를 알 수 없다. **"리뷰 의향을 묻는 사전 프롬프트(would you like to review?) 금지"** — 정책 위반. 짧은 시간 내 반복 호출도 무시된다.
+- **공통**: 호출 자체에 비용은 없지만, 정책 엔진으로 호출을 줄여야 "표시될 기회"가 보존된다. `requestReview()`는 표시 여부를 반환하지 않으므로 **표시되었다고 가정한 후속 UI/로직을 만들지 않는다**.
 
 ### 트리거 정책 (Hard Rules)
 
@@ -443,7 +444,10 @@ npx expo install expo-store-review
 | 앱 실행(launch) 누적 횟수 | 5회 이상 | 한 번 써본 사용자 제외 |
 | 핵심 액션 완료 횟수 | 3회 이상 | "Activation" 한 번이 아닌 반복 사용 |
 | 마지막 요청 이후 경과 | 90일 이상 | iOS 시스템 쿼터 보호 |
+| **365일 윈도우 내 자체 호출 횟수** | **3회 이하** | iOS 시스템 한도(연 3회)와 동일. 우리도 카운팅해서 초과 호출 자체를 차단 |
 | 이번 세션에 이미 요청 | false | 한 세션에 1회 |
+| **앱 실행 직후 cooldown** | **120초 이상 경과** | "실행 즉시" 노출 차단 (HIG) |
+| **UI idle 상태 필수** | **true** | 모달/시트/네비게이션 트랜지션/폼 입력/비동기 작업 진행 중 호출 차단 |
 | 최근 5분 내 에러/크래시 | false | 부정적 컨텍스트 차단 |
 | `Platform.isPad` 등 폼팩터 제외 | 정책 결정 | 필요 시 옵트아웃 |
 
@@ -455,6 +459,8 @@ npx expo install expo-store-review
 - "별점 5개 부탁드려요" 등 평점 점수 유도 문구 (App Store 가이드라인 위반)
 - 평점을 안 주면 기능을 막는 dark pattern
 - 각 화면에서 `StoreReview.requestReview()`를 정책 엔진 없이 직접 호출
+- **자체 사전 프롬프트 금지** — "평점 남겨주실래요?" 같은 커스텀 다이얼로그/시트/액션시트로 의향 먼저 묻고 시스템 다이얼로그를 띄우는 흐름 금지 (Google Play 정책 위반, App Store도 권장하지 않음). 곧바로 시스템 다이얼로그(`StoreReview.requestReview()`)만 호출
+- **표시 결과 의존 로직 금지** — `requestReview()`는 표시 여부를 반환하지 않는다. "다이얼로그가 떴으니 토스트 보여주자/다음 화면 이동하자" 같은 후속 UI 분기 금지. 호출은 fire-and-forget
 
 ### 코드 통합 위치 (FSD)
 
@@ -492,6 +498,8 @@ export interface IReviewPolicy {
   minLaunchCount: number;             // 5
   minKeyActionCount: number;          // 3
   minDaysSinceLastRequest: number;    // 90
+  maxRequestsPerYear: number;         // 3 (iOS 시스템 한도와 동일)
+  cooldownAfterLaunchSec: number;     // 120 (앱 실행 직후 차단)
   blockAfterErrorWindowMin: number;   // 5
 }
 
@@ -500,23 +508,40 @@ export const DEFAULT_POLICY: IReviewPolicy = {
   minLaunchCount: 5,
   minKeyActionCount: 3,
   minDaysSinceLastRequest: 90,
+  maxRequestsPerYear: 3,
+  cooldownAfterLaunchSec: 120,
   blockAfterErrorWindowMin: 5,
 };
 
-export const canRequestReview = (state: IReviewState, policy = DEFAULT_POLICY): boolean => {
+export interface ICanRequestContext {
+  uiIsIdle: boolean;  // 호출자가 보장 — 모달/트랜지션/폼 입력/비동기 작업이 없을 때 true
+}
+
+export const canRequestReview = (
+  state: IReviewState,
+  ctx: ICanRequestContext,
+  policy = DEFAULT_POLICY,
+): boolean => {
+  if (!ctx.uiIsIdle) return false;
   if (state.requestedThisSession) return false;
   if (dayjs().diff(dayjs(state.installedAt), 'day') < policy.minDaysSinceInstall) return false;
   if (state.launchCount < policy.minLaunchCount) return false;
   if (state.keyActionCount < policy.minKeyActionCount) return false;
+  if (dayjs().diff(dayjs(state.sessionStartedAt), 'second') < policy.cooldownAfterLaunchSec) return false;
   if (state.lastRequestedAt) {
     if (dayjs().diff(dayjs(state.lastRequestedAt), 'day') < policy.minDaysSinceLastRequest) return false;
   }
+  const oneYearAgo = dayjs().subtract(1, 'year');
+  const requestsInLastYear = state.requestHistory.filter((iso) => dayjs(iso).isAfter(oneYearAgo)).length;
+  if (requestsInLastYear >= policy.maxRequestsPerYear) return false;
   if (state.lastErrorAt) {
     if (dayjs().diff(dayjs(state.lastErrorAt), 'minute') < policy.blockAfterErrorWindowMin) return false;
   }
   return true;
 };
 ```
+
+> `IReviewState`는 `sessionStartedAt: string` 과 `requestHistory: string[]` (최근 호출 ISO 타임스탬프 목록)을 포함해야 한다. `recordLaunch()`는 `sessionStartedAt`을 갱신하고, `markRequested()`는 `requestHistory`에 push + 1년 초과 항목 prune.
 
 ```typescript
 // src/shared/store-review/hooks/useStoreReview.ts
@@ -527,22 +552,33 @@ import { useReviewStore } from '../store';
 import { canRequestReview } from '../policy';
 import type { TReviewTrigger } from '../triggers';
 
+export interface IMaybeRequestOptions {
+  /** 호출 시점에 모달/트랜지션/비동기 작업이 없는지 호출자가 보장 */
+  uiIsIdle: boolean;
+}
+
 export const useStoreReview = () => {
   const state = useReviewStore();
 
-  const maybeRequest = useCallback(async (trigger: TReviewTrigger) => {
-    if (!(await StoreReview.isAvailableAsync())) return false;
-    if (!canRequestReview(state)) return false;
+  const maybeRequest = useCallback(
+    async (trigger: TReviewTrigger, options: IMaybeRequestOptions = { uiIsIdle: true }) => {
+      if (!(await StoreReview.isAvailableAsync())) return false;
+      if (!canRequestReview(state, { uiIsIdle: options.uiIsIdle })) return false;
 
-    state.markRequested();
-    await logEvent('request_store_review', { trigger });
-    await StoreReview.requestReview();
-    return true;
-  }, [state]);
+      state.markRequested();
+      await logEvent('request_store_review', { trigger });
+      // fire-and-forget: 표시 여부에 의존하지 않는다
+      void StoreReview.requestReview();
+      return true;
+    },
+    [state],
+  );
 
   return { maybeRequest };
 };
 ```
+
+**호출자 규칙**: `maybeRequest`의 boolean 반환값은 **"정책 통과 + 호출 시도"** 만 의미하며 다이얼로그가 실제로 표시되었음을 보증하지 않는다. 어떤 후속 UI/네비게이션 분기도 이 값에 의존해선 안 된다.
 
 ### 호출 규칙 (CRITICAL)
 
@@ -566,6 +602,9 @@ export const useStoreReview = () => {
 | 에러/크래시 핸들러 내부의 평점 요청 호출 | **0개** |
 | 온보딩/첫 실행/결제 실패 직후 평점 요청 | **0개** |
 | 평점 점수 유도 문구("5점 부탁") UI 텍스트 | **0개** |
+| 자체 사전 프롬프트 다이얼로그/시트 (Google Play 정책 위반) | **0개** |
+| `maybeRequest()` 반환값에 의존하는 후속 UI/네비게이션 분기 | **0개** |
+| `IReviewPolicy`의 `maxRequestsPerYear` / `cooldownAfterLaunchSec` / `uiIsIdle` 게이트 누락 | **0개** |
 
 ### 에이전트 책임 분담
 

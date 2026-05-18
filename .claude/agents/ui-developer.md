@@ -16,6 +16,29 @@ NativeWind(Tailwind CSS) 기반의 React Native UI 컴포넌트 및 스크린을
 4. **스타일링**: NativeWind className 기반 스타일, tailwind.config.js 테마 확장
 5. **Engagement 배선**: 화면 성공 콜백에 `useStoreReview().maybeRequest(REVIEW_TRIGGERS.X)`와 `recordKeyAction()` 호출 삽입. 화면 진입 시 `useScreenTracking()` 호출 삽입
 
+## Pre-Work Contract — `_workspace/spec.md` 우선 읽기 (MANDATORY)
+
+작업 시작 전 반드시 아래 순서로 컨텍스트를 로드한다:
+
+1. `_workspace/spec.md` 의 `ux`, `auth.profile_screen`, `monetization.paywall_position`, `policy.privacy_url`, `permissions` Read
+2. 해당 필드의 `*_notes` Read
+3. `project.context` Read
+
+**스크린 분기 규칙:**
+- `ux.onboarding=none` → 온보딩 라우트/화면 생성 안 함, `app/(tabs)`로 바로 진입
+- `ux.onboarding=slideshow` → 스킵 가능한 슬라이드 (기본 3장, `_notes`로 장수/내용 오버라이드)
+- `ux.dark_mode=light_only` → 다크 색상 클래스 생성 안 함
+- `ux.store_review=true` → 트리거 화면의 성공 콜백에 `maybeRequest({ uiIsIdle: true })` 배선 + `recordKeyAction()`
+- `ux.store_review=false` → store-review 관련 import/호출 전부 생략
+- `auth.profile_screen=false` → 프로필 화면 생성 안 함
+- `monetization.paywall_position`에 따라 페이월 진입점 배선 (none이면 페이월 자체 생성 안 함)
+- 평점 트리거 호출 시 **`uiIsIdle: true` 보장** — 모달/시트/네비게이션 트랜지션/폼 입력/비동기 작업 진행 중에는 호출 금지
+
+**우선순위 규칙:**
+- `*_notes`가 비어있지 않으면 같은 필드의 객관식 값보다 **우선 반영**
+- 예: `ux.onboarding=slideshow` + `onboarding_notes: "3장 이하, 마지막에 푸시 권한 요청"` → 그대로 반영
+- 모호하면 `AskUserQuestion` (`execution.unattended: true`면 `on_ambiguity` 정책)
+
 ## Rules
 
 - 모든 스크린에 SafeAreaView 필수 (`react-native-safe-area-context`)
@@ -24,7 +47,8 @@ NativeWind(Tailwind CSS) 기반의 React Native UI 컴포넌트 및 스크린을
 - Props 타입은 `I{Name}Props` 인터페이스로 정의
 - 리스트 렌더링 시 FlashList 우선 사용
 - Bottom Sheet는 `@gorhom/bottom-sheet` 사용
-- **Store Review 배선**: `expo-store-review`를 직접 호출하지 않는다. PRD의 Review Triggers에 명시된 화면의 성공 콜백에서만 `useStoreReview().maybeRequest(REVIEW_TRIGGERS.X)` 호출. 에러 핸들러/`catch` 블록 내부 호출 금지
+- **Store Review 배선**: `expo-store-review`를 직접 호출하지 않는다. PRD의 Review Triggers에 명시된 화면의 성공 콜백에서만 `useStoreReview().maybeRequest(REVIEW_TRIGGERS.X, { uiIsIdle: true })` 호출. 에러 핸들러/`catch` 블록 내부 호출 금지. **자체 사전 프롬프트(별점 의향 묻는 커스텀 다이얼로그) 금지** — Google Play 정책 위반
+- **maybeRequest 반환값 사용 금지**: 후속 UI/네비게이션 분기에 사용하지 않는다 (fire-and-forget)
 - **Key Action 카운터**: PRD가 "핵심 액션"으로 지정한 성공 콜백에서 `useReviewStore().recordKeyAction()` 호출
 - **UI 텍스트**: 평점 관련 UI 텍스트에 별점 점수 유도 문구("5점 부탁", "별 5개 주세요" 등) 사용 금지 — App Store 가이드라인 위반
 

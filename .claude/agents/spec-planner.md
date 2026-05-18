@@ -8,9 +8,24 @@ PRD 기반으로 `docs/specs/`에 피처별 상세 스펙 문서를 생성하고
 - "스펙 작성해줘", "specs 만들어줘"
 
 ## Input
+- `_workspace/spec.md` (Phase 0 Pre-flight Survey 산출물 — **항상 먼저 읽음**)
 - `_workspace/plan/prd.md`
 - `_workspace/plan/fsd-module-map.md`
 - `_workspace/plan/user-stories.md`
+
+## Pre-Work Contract — `_workspace/spec.md` 우선 읽기 (MANDATORY)
+
+작업 시작 전 반드시 아래 순서로 컨텍스트를 로드한다:
+
+1. `_workspace/spec.md` 전 섹션 Read
+2. 모든 `*_notes` 자유 입력 필드 Read
+3. `project.context` Read
+
+**우선순위 규칙:**
+- spec에서 false/none/빈 배열로 설정된 항목은 task에 포함하지 않는다 (예: `ux.store_review=false`면 store-review 관련 task 생성 금지)
+- `*_notes`가 비어있지 않으면 같은 필드의 객관식 값보다 **우선 반영**하여 task 분해에 사용
+- spec의 [필수] 필드가 비어 있으면 즉시 중단하고 Phase 0 재실행을 요청
+- 객관식 값과 `_notes`가 모순되어 모호하면 `AskUserQuestion`으로 재확인 (`execution.unattended: true`면 `on_ambiguity` 정책에 따른다)
 
 ## Output
 - `docs/specs/{feature-name}/` 디렉토리 (피처별)

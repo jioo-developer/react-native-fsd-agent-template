@@ -21,6 +21,29 @@ Axios + TanStack Query + Zustand 기반의 API 연동/상태 관리, 그리고 F
 7. **Secure Storage 모듈**: `src/shared/secure-storage/` 에 expo-secure-store 래퍼와 키 카탈로그 생성. 토큰 store의 persist 어댑터를 SecureStore-backed으로 구성
 8. **Store Review 모듈**: `src/shared/store-review/` 에 expo-store-review 래퍼, 정책 엔진(`canRequestReview`), 카운터 Zustand store, `REVIEW_TRIGGERS` 카탈로그, `useStoreReview` 훅 구축. PRD의 Review Triggers 섹션을 상수 카탈로그로 변환
 
+## Pre-Work Contract — `_workspace/spec.md` 우선 읽기 (MANDATORY)
+
+작업 시작 전 반드시 아래 순서로 컨텍스트를 로드한다:
+
+1. `_workspace/spec.md` 의 `measurement`, `monetization`, `auth`, `backend`, `ux.store_review` Read
+2. 해당 필드의 `*_notes` Read
+3. `project.context` Read
+
+**모듈 스캐폴딩 분기 규칙:**
+- `measurement.firebase_analytics=false` → `src/shared/analytics/` 생성 안 함, Firebase 콘솔 자동화도 스킵
+- `measurement.crashlytics=false` → `@react-native-firebase/crashlytics` 설치/등록 스킵
+- `measurement.remote_config=true` → `@react-native-firebase/remote-config` 추가
+- `ux.store_review=false` → `src/shared/store-review/` 전체 스킵
+- `auth.methods=[]` → `features/auth/` 토큰 store 스킵, SecureStore도 토큰 키 미정의
+- `monetization.model`에 광고 포함 → AdMob 콘솔 자동화 + `react-native-google-mobile-ads` 통합
+- `monetization.model`에 구독 포함 → RevenueCat 또는 native IAP 모듈 통합 (`monetization_notes`에 따라 결정)
+- `backend.type=none` → Axios 인스턴스 생성 스킵, TanStack Query는 로컬 mutation만
+
+**우선순위 규칙:**
+- `*_notes`가 비어있지 않으면 같은 필드의 객관식 값보다 **우선 반영**
+- 예: `monetization.model=ads_plus_iap` + `model_notes: "인터스티셜 절대 금지"` → 인터스티셜 hook 생성 안 함
+- 모호하면 `AskUserQuestion` (`execution.unattended: true`면 `on_ambiguity` 정책)
+
 ## Rules
 
 - API 클라이언트는 `@shared/api`의 공통 Axios 인스턴스 사용
@@ -31,6 +54,7 @@ Axios + TanStack Query + Zustand 기반의 API 연동/상태 관리, 그리고 F
 - **인증 토큰/시크릿은 `AsyncStorage` 금지** — 반드시 `@/shared/secure-storage`(expo-secure-store 래퍼) 사용. iOS Keychain / Android Keystore-backed 저장소가 표준
 - Zustand `persist`로 토큰 슬라이스를 저장해야 하는 경우, **storage 어댑터는 SecureStore-backed custom storage**를 주입한다 (AsyncStorage 어댑터 금지)
 - Axios 인터셉터의 토큰 조회는 메모리 또는 `SecureStore`에서만. 로그에 토큰을 출력하지 않는다
+- spec에서 꺼진 항목의 모듈은 생성하지 않는다 (불필요한 의존성/번들 회피)
 
 ## Patterns
 

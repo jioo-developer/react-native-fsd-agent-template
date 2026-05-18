@@ -9,6 +9,20 @@
 - 코드 컨벤션(네이밍, import 규칙 등) 준수를 확인한다
 - 보안 취약점 및 성능 문제를 탐지한다
 
+## Pre-Work Contract — `_workspace/spec.md` 우선 읽기 (MANDATORY)
+
+작업 시작 전 반드시 아래 순서로 컨텍스트를 로드한다:
+
+1. `_workspace/spec.md` 전 섹션 Read
+2. 모든 `*_notes` Read
+3. `project.context` Read
+
+**검증 범위 분기 규칙:**
+- spec에서 꺼진 항목의 Hard Threshold는 적용하지 않는다 (예: `measurement.firebase_analytics=false`면 KPI/이벤트 관련 Hard Threshold 미적용)
+- spec에서 켜진 항목은 빠짐없이 검증한다 — 누락 시 FAIL
+- `*_notes`가 비어있지 않으면 그 제약(예: "인터스티셜 절대 금지")이 코드에 반영되었는지 직접 grep으로 검증
+- 모순 발견 시 `*_notes` 우선이 원칙. `_notes`와 코드가 일치하면 PASS, 객관식 값만 따랐으면 FAIL
+
 ## Verification Checklist
 
 ### 1. FSD Architecture Rules
@@ -52,6 +66,12 @@
 - [ ] 에러 핸들러/`catch`/`onError` 내부의 평점 요청 호출 없음
 - [ ] 온보딩/첫 실행/결제 실패 직후의 평점 요청 없음
 - [ ] 별점 점수 유도 UI 텍스트("5점 부탁", "별 5개" 등) 없음
+- [ ] **자체 사전 프롬프트 없음** — "평점 남겨주실래요?" 같은 커스텀 다이얼로그/시트/Alert로 의향을 먼저 묻고 시스템 다이얼로그를 띄우는 흐름 금지 (Google Play 정책 위반)
+- [ ] `IReviewPolicy`에 `maxRequestsPerYear` / `cooldownAfterLaunchSec` 필드 존재, 정책 엔진이 두 값을 검사함
+- [ ] `canRequestReview` 시그니처에 `ICanRequestContext`(`uiIsIdle`) 파라미터 존재
+- [ ] `maybeRequest` 호출 시점에 모달/시트/네비게이션 트랜지션/폼 입력/비동기 작업이 진행 중이 아님 (`uiIsIdle: true` 보장)
+- [ ] `maybeRequest()` 반환값에 의존하는 후속 UI/네비게이션 분기 없음 — `requestReview()`는 표시 여부 신호가 없으므로 fire-and-forget
+- [ ] `IReviewState`에 `sessionStartedAt`, `requestHistory: string[]` 필드 존재. `recordLaunch`가 세션 시작 시각 갱신, `markRequested`가 1년 초과 항목 prune
 
 ### 6. Common Bug Patterns
 - [ ] **날짜 타임존 버그**: `new Date().toISOString().split('T')[0]`로 로컬 날짜를 구하는 코드 금지 — UTC 기준이라 UTC+9(한국/일본) 지역에서 자정~09시 사이에 "어제" 날짜가 반환됨. 반드시 `dayjs().format('YYYY-MM-DD')` 사용 (로컬 시간 기준)
@@ -75,6 +95,9 @@
 | 토큰을 AsyncStorage에 저장 | **0개** | `grep -rE "AsyncStorage.*(token\|secret\|password)"` 등 | 가능 |
 | SecureStore 외부에서 토큰 처리 | **0개** | `@/shared/secure-storage` 미경유 토큰 참조 grep | 수동 |
 | 토큰/PII 로그 노출 | **0개** | `console.log` 인자 분석 | 수동 |
+| 평점 정책 `maxRequestsPerYear`/`cooldownAfterLaunchSec`/`uiIsIdle` 게이트 누락 | **0개** | `policy.ts` 필드/시그니처 확인 | 수동 |
+| 평점 자체 사전 프롬프트 다이얼로그/시트 | **0개** | "평점/리뷰/별점" UI 텍스트 + Alert/Modal/ActionSheet 조합 grep | 수동 |
+| 평점 `maybeRequest` 반환값에 의존한 후속 분기 | **0개** | `maybeRequest(...)` 호출 결과 사용 패턴 검사 | 수동 |
 
 ## Active Testing (능동 테스트)
 

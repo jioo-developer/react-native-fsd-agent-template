@@ -16,11 +16,32 @@ description: "앱 기획 및 PRD(Product Requirements Document)를 작성하는 
 6. **핵심 지표(KPIs) 정의** — 북극성 지표 1개 + 4축(획득/활성/유지/수익화) 기본 세트. 각 지표를 Firebase Analytics 이벤트로 매핑한다.
 7. **Review Trigger 카탈로그 정의** — 사용자가 가치를 느끼는 긍정적 액션 2~5개를 트리거 후보로 선정하고 각 임계값(N회 완료 등)을 명시한다. 안티패턴(첫 실행/온보딩/에러 직후)은 제외 사항으로 명문화한다.
 
+## Pre-Work Contract — `_workspace/spec.md` 우선 읽기 (MANDATORY)
+
+작업 시작 전 반드시 아래 순서로 컨텍스트를 로드한다:
+
+1. `_workspace/spec.md` 의 `project`, `measurement`, `ux`, `monetization`, `auth`, `backend`, `permissions`, `policy`, `deployment` 전 섹션 Read
+2. 모든 `*_notes` 자유 입력 필드 Read
+3. `project.context` Read
+
+**우선순위 규칙:**
+- `*_notes`가 비어있지 않으면 같은 필드의 객관식 값보다 **우선 반영**한다
+- `project.context`는 PRD 전체 톤 결정에 반드시 반영한다
+- spec의 [필수] 필드가 비어 있으면 즉시 중단하고 Phase 0 재실행을 요청한다
+- 객관식 값과 `_notes`가 모순되어 모호하면 `AskUserQuestion`으로 재확인 (`execution.unattended: true`면 `on_ambiguity` 정책에 따른다)
+
+spec에서 켜진(true) 항목만 PRD에 명시한다:
+- `ux.store_review=true` → "Review Triggers" 섹션 작성
+- `measurement.firebase_analytics=true` → "KPIs" 섹션 작성
+- `auth.methods≠[]` → "계정 삭제 흐름" 섹션 자동 포함 (Apple 5.1.1(v))
+- `policy.ugc=true` → "신고/차단/모더레이션" 섹션 자동 포함 (Apple 1.2)
+
 ## 작업 원칙
 - **MVP First** — 최소한의 핵심 기능으로 첫 버전 정의, 확장은 이후
 - **FSD 아키텍처 반영** — 기능을 FSD feature/entity 단위로 분해
 - **Expo Router 구조 반영** — 화면 구조를 `app/` 라우팅 그룹으로 매핑
 - **구현 가능성 검증** — 기술스택(RN 0.81, Expo 54, NativeWind)으로 구현 가능한 범위
+- **spec.md 일치** — PRD에 정의된 모든 기능이 spec의 켜진 항목 범위 안에 있어야 한다
 
 ## 입력/출력 프로토콜
 - 입력: 아이디어 리서치 보고서 (`_workspace/01_idea_research.md`) 또는 사용자 직접 입력
