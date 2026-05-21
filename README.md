@@ -41,6 +41,485 @@
 
 # React Native FSD Agent Template
 
+[English](#react-native-fsd-agent-template-en) | [한국어](#react-native-fsd-agent-template-ko)
+
+---
+
+<a name="react-native-fsd-agent-template-en"></a>
+
+# React Native FSD Agent Template (English)
+
+A React Native + Expo + Feature-Sliced Design production template that supports AI agent-based full-lifecycle development.
+
+> **What makes this different?** This template includes 8 Claude Code agents and 8 skills that understand FSD architecture rules. With a single "Make an app" command, the entire pipeline—from ideation to market research, planning, design system, FSD module scaffolding, API integration, screen development, and QA verification—runs automatically.
+
+---
+
+## Full Pipeline
+
+```
+Phase 1: Ideation       idea-researcher   Market research, competitor analysis, idea generation
+           │
+Phase 2: Planning       product-planner   PRD, user stories, FSD module map design
+           │
+Phase 2.5: Spec Planning  spec-planner    Feature spec docs, phase/task decomposition, progress tracking
+           │
+Phase 3: Design         design-architect  NativeWind theme, screen layouts
+           │
+Phase 4: Implementation (Sequential + spec task check)
+  4a       feature-builder   FSD modules, Zustand store, TypeScript types
+  4b       api-integrator    Axios client, TanStack Query hooks
+  4c       ui-developer      Expo Router screens, NativeWind UI
+           │
+Phase 5: QA (Parallel)
+  5a       qa-reviewer       Code quality, TypeScript strict, FSD rules
+  5b       app-inspector     Functional/UX inspection, Safe Area, accessibility
+           │
+Phase 6: Iteration      Fix Loop (max 3 times)
+           │
+Phase 7: Deployment     /store-deploy → EAS Build → App Store / Google Play
+```
+
+Data Flow: Context between agents is passed through the `_workspace/` directory.
+
+---
+
+## Agent Team
+
+| Agent | Role | Trigger |
+|---------|-----|-------|
+| **idea-researcher** | Market research, app idea generation | "Find app ideas" |
+| **product-planner** | PRD, FSD module map, user stories | "Plan the app" |
+| **spec-planner** | Feature spec docs, phase/task decomposition, progress tracking | Auto after Phase 2 |
+| **design-architect** | Design system, NativeWind theme | "Create design system" |
+| **feature-builder** | FSD module scaffolding | "Create feature/entity" |
+| **api-integrator** | Axios + TanStack Query + Zustand | "Integrate API" |
+| **ui-developer** | NativeWind screens & UI components | "Create screens" |
+| **qa-reviewer** | Code quality, TypeScript, FSD rules | Auto at each Phase |
+| **app-inspector** | Functional/UX inspection, Safe Area, accessibility | "Inspect app" |
+
+---
+
+## Skills
+
+| Skill | Command | Description |
+|-----|-------|-----|
+| `ideate` | "Find app ideas" | Market research and idea generation |
+| `plan-app` | "Plan the app" | PRD writing and FSD module map design |
+| `design-system` | "Create design system" | NativeWind theme and screen layout |
+| `create-feature` | "Create feature" | FSD feature module scaffolding |
+| `create-entity` | "Create entity" | FSD entity domain model creation |
+| `create-screen` | "Add screen" | Expo Router screen creation |
+| `inspect-app` | "Inspect app" | Full functional/UX inspection |
+| `orchestrate` | "Make an app" | Full pipeline orchestration |
+
+---
+
+## Architecture Pattern
+
+The pipeline mixes two patterns:
+
+- **Phase 1–2**: Sequential Pipeline — Output of each agent becomes input for the next.
+- **Phase 2.5**: Spec Planning — PRD is decomposed into feature-specific phases/tasks in `docs/specs/`. This serves as the baseline for implementation tracking.
+- **Phase 3**: Design — Design system, theme, and screen layout design.
+- **Phase 4**: Fan-out (Sequential) — feature-builder → api-integrator → ui-developer. **Update spec checkboxes on task completion**.
+- **Phase 5**: Parallel Execution — qa-reviewer and app-inspector inspect simultaneously.
+- **Phase 6**: Fix Loop — Up to 3 iterations; unresolved issues marked as TODO.
+
+### Harness Design Principles
+
+Designed based on [Anthropic's official Harness Engineering Guide](https://www.anthropic.com/engineering/harness-design-long-running-apps) and [revfactory/harness](https://github.com/revfactory/harness).
+
+| Principle | Description |
+|------|------|
+| **Context Reset** | Save artifacts in `_workspace/` between phases then reset context. More effective than compaction. |
+| **Sprint-based Decomposition** | Feature-level sprints in Phase 4. Implement → Evaluate → Fix for each sprint. |
+| **Independent Evaluator** | Separate Generator (builder/integrator/developer) and Evaluator (reviewer/inspector). |
+| **Hard Threshold** | Strict pass/fail criteria. 0 typecheck errors, 0 any types, 0 FSD violations. |
+| **4-Axis Design Evaluation** | Design Quality (30%), Originality (25%), Craft (25%), Functionality (20%). |
+| **Design Guardrails** | Use Do's & Don'ts to prevent off-brand AI choices. |
+| **Active Testing** | Static analysis + `npm run typecheck/lint` + circular dependency detection. |
+
+---
+
+## Tech Stack
+
+| Category | Technology |
+|----------|-----------|
+| Framework | React Native 0.81 + Expo 54 |
+| Language | TypeScript 5.9 (strict mode) |
+| Routing | Expo Router 6 (file-based) |
+| Global State | Zustand 5 |
+| Server State | TanStack Query 5 |
+| Styling | NativeWind 4 (Tailwind CSS 3.4) |
+| Form & Validation | React Hook Form 7 + Zod 4 |
+| API Client | Axios (auto token refresh) |
+| Animation | Reanimated 4 + Lottie 7 |
+| List | FlashList 2 (Shopify) |
+| Bottom Sheet | @gorhom/bottom-sheet 5 |
+| Date | Day.js |
+| Lint & Format | ESLint 9 + Prettier 3 |
+| Build & Deploy | EAS Build / EAS Submit |
+
+---
+
+## Getting Started
+
+### 1. Using the Template
+
+Click the **"Use this template"** button on GitHub or:
+
+```bash
+gh repo create my-app --template seungmanchoi/react-native-fsd-agent-template --clone
+cd my-app
+```
+
+### 2. Install Dependencies
+
+```bash
+npm install
+```
+
+### 3. Environment Setup
+
+```bash
+cp .env.example .env
+```
+
+Edit the `.env` file to set your API URL, etc.
+
+### 4. Running the App
+
+```bash
+npm start          # Expo Dev Server (LAN)
+npm run ios        # iOS Simulator
+npm run android    # Android Emulator
+```
+
+### 5. Using AI Agent Harness (Claude Code)
+
+```bash
+# Full Pipeline — Make an app from scratch
+"Make a coffee subscription app"
+
+# Individual Skills — Add specific features
+"Add product list/detail feature. API endpoint is /products"
+
+# → feature-builder: scaffolding src/features/product/
+# → api-integrator: creating API functions + useProducts hooks
+# → ui-developer: creating product list/detail screens
+# → qa-reviewer: FSD rules + type validation
+```
+
+---
+
+## Project Structure
+
+```
+.
+├── .claude/
+│   ├── agents/                         # AI Agent definitions
+│   │   ├── idea-researcher.md          # Market research, idea generation
+│   │   ├── product-planner.md          # PRD, FSD module map
+│   │   ├── design-architect.md         # Design system, layouts
+│   │   ├── feature-builder.md          # FSD module scaffolding
+│   │   ├── api-integrator.md           # API + state management
+│   │   ├── ui-developer.md             # UI/Screen development
+│   │   ├── spec-planner.md             # Spec docs, phase/task decomposition
+│   │   ├── qa-reviewer.md              # Code quality assurance
+│   │   └── app-inspector.md            # Functional/UX inspection
+│   └── skills/                         # AI Skills
+│       ├── ideate/                     # Ideation
+│       ├── plan-app/                   # App planning
+│       ├── design-system/              # Design system
+│       ├── create-feature/             # Feature scaffolding
+│       ├── create-entity/              # Entity scaffolding
+│       ├── create-screen/              # Screen creation
+│       ├── inspect-app/                # App inspection
+│       └── orchestrate/                # Full pipeline orchestration
+│
+├── docs/
+│   └── specs/                         # Feature spec docs (spec-planner output)
+│       ├── README.md                  # Progress dashboard
+│       └── {NN}-{feature}/            # Feature-specific phase files
+│           ├── phase1-mvp.md
+│           └── phase2-enhancement.md
+│
+├── _workspace/                         # Data exchange between agents
+│   ├── idea/                           # Phase 1 output
+│   ├── plan/                           # Phase 2 output
+│   ├── design/                         # Phase 3 output
+│   ├── implementation/                 # Phase 4 output
+│   └── qa/                             # Phase 5 output
+│
+├── app/                                # Expo Router (file-based routing)
+│   ├── _layout.tsx                     # Root layout (providers)
+│   ├── (auth)/                         # Auth group (unauthenticated)
+│   │   ├── _layout.tsx
+│   │   └── login.tsx
+│   └── (tabs)/                         # Tab group (authenticated)
+│       ├── _layout.tsx                 # Bottom tabs
+│       ├── index.tsx
+│       ├── explore.tsx
+│       └── profile.tsx
+│
+├── src/
+│   ├── core/                           # App initialization
+│   │   └── providers/                  # QueryProvider, ThemeProvider
+│   │
+│   ├── features/                       # Business logic features
+│   │   └── auth/                       # Example: authentication
+│   │       ├── api/                    # API calls
+│   │       ├── hooks/                  # useLogin, useSignup
+│   │       ├── types/                  # ILoginRequest, ILoginResponse
+│   │       └── index.ts                # Public API
+│   │
+│   ├── entities/                       # Domain models
+│   │   └── user/                       # Example: user entity
+│   │       ├── api/                    # User API
+│   │       ├── store/                  # Zustand store
+│   │       ├── types/                  # IUser
+│   │       └── index.ts                # Public API
+│   │
+│   ├── widgets/                        # Independent UI blocks
+│   │
+│   └── shared/                         # Shared code
+│       ├── api/                        # Axios client + token management
+│       ├── config/                     # Environment, theme
+│       ├── lib/                        # Custom hooks, utils
+│       ├── types/                      # Common types
+│       └── ui/                         # UI components
+│
+├── app.config.ts                       # Expo config (dynamic)
+├── tailwind.config.js                  # NativeWind/Tailwind config
+├── tsconfig.json                       # TypeScript (path aliases)
+├── eslint.config.js                    # ESLint 9 Flat Config
+├── .prettierrc.js                      # Prettier rules
+├── eas.json                            # EAS Build profiles
+└── CLAUDE.md                           # Claude Code instructions
+```
+
+---
+
+## FSD Architecture
+
+**Feature-Sliced Design** is an architectural methodology for organizing frontend code by business domains.
+
+### Layer Hierarchy
+
+```
+app (routing) → widgets → features → entities → shared
+```
+
+Upper layers can only reference lower layers. Direct references between the same level are prohibited.
+
+### Adding a New Feature
+
+```
+src/features/my-feature/
+├── api/
+│   ├── my-feature.api.ts       # API calls
+│   └── index.ts
+├── hooks/
+│   ├── use-my-feature.ts       # Custom hooks
+│   └── index.ts
+├── store/                      # (optional) Zustand store
+│   ├── my-feature.store.ts
+│   └── index.ts
+├── types/
+│   ├── my-feature.types.ts     # Interfaces, types
+│   └── index.ts
+├── ui/                         # (optional) Feature-specific UI
+│   ├── MyComponent.tsx
+│   └── index.ts
+└── index.ts                    # Public API (barrel export)
+```
+
+### Adding a New Entity
+
+```
+src/entities/my-entity/
+├── api/                        # Entity API
+├── store/                      # Zustand store
+├── types/                      # IMyEntity
+└── index.ts                    # Public API
+```
+
+---
+
+## Path Aliases
+
+| Alias | Path |
+|-------|------|
+| `@/*` | `./src/*` |
+| `@core/*` | `./src/core/*` |
+| `@features/*` | `./src/features/*` |
+| `@entities/*` | `./src/entities/*` |
+| `@widgets/*` | `./src/widgets/*` |
+| `@shared/*` | `./src/shared/*` |
+
+```typescript
+// Example
+import { Button } from '@shared/ui';
+import { useLogin } from '@features/auth';
+import { useUserStore } from '@entities/user';
+```
+
+---
+
+## Available Scripts
+
+```bash
+npm start              # Dev server (LAN mode)
+npm run start:local    # Dev server (localhost)
+npm run start:tunnel   # Dev server (tunnel)
+npm run ios            # Run on iOS
+npm run android        # Run on Android
+npm run web            # Run on Web
+npm run lint           # ESLint 9 check
+npm test               # Vitest unit tests
+npm run typecheck      # TypeScript check
+npm run format         # Prettier format
+npm run eas:build:dev  # EAS development build
+npm run eas:build:prod # EAS production build
+```
+
+---
+
+## Customization
+
+### 1. App Name and Identifier
+
+Edit in `app.config.ts`:
+
+```typescript
+name: 'MyApp',              // App name
+slug: 'my-app',             // URL slug
+scheme: 'myapp',            // Deep link scheme
+// iOS
+bundleIdentifier: 'com.myapp.app',
+// Android
+package: 'com.myapp.app',
+```
+
+### 2. Theme Colors
+
+Change primary colors in `tailwind.config.js`:
+
+```javascript
+colors: {
+  primary: {
+    500: '#your-color',
+    // ...
+  },
+},
+```
+
+Edit detailed theme in `src/shared/config/theme.ts`.
+
+### 3. API URL
+
+`.env` file:
+
+```
+API_URL=http://your-api-server:3000
+```
+
+### 4. EAS Build Setup
+
+```bash
+eas build:configure    # Initial EAS setup
+```
+
+Edit build profiles in `eas.json`.
+
+---
+
+## Naming Conventions
+
+| Type | Prefix | Example |
+|------|--------|---------|
+| Interface | `I` | `IUserState` |
+| Type | `T` | `TButtonVariant` |
+| Enum | `E` | `EUserRole` |
+| Hook | `use-` | `use-login.ts` |
+| Component | PascalCase | `Button.tsx` |
+| Util | camelCase | `auth-utils.ts` |
+
+---
+
+## Branch Strategy
+
+```
+main      ← Production
+  ^
+devel     ← Development (default)
+  ^
+feature/* ← Feature branches
+```
+
+---
+
+## Build & Deploy Optimization
+
+### EAS Build Sequence (Mandatory)
+
+```
+1. eas build --local        ← Check for build errors locally first
+2. eas build                ← Proceed to cloud build after success
+3. eas submit               ← Submit to store
+```
+
+> Since cloud build credits are limited, catch Gradle/Xcode errors locally first.
+
+### .easignore Setup
+
+Exclude unnecessary files from the build archive to reduce upload time:
+
+```
+node_modules/
+assets/store-screenshots/
+fastlane/
+scripts/
+build-output/
+_workspace/
+.claude/
+plugins/
+.git/
+.idea/
+.vscode/
+*.md
+```
+
+### App Size Optimization
+
+| Optimization Item | Method | Effect |
+|------------|------|------|
+| **Image Format** | PNG → WebP, optimal resolution | 50%+ reduction in assets |
+| **Unused Fonts** | Remove unnecessary `@expo-google-fonts/*` | 0.5-2MB per font |
+| **Unused Packages** | Check `npm ls` and remove | Bundle size reduction |
+| **Lottie Optimization** | Remove unnecessary layers, check file size | Potential 1-5MB reduction |
+
+---
+
+## Inspired By
+
+- **[revfactory/harness](https://github.com/revfactory/harness)** — Agent Team & Skill Architect meta-skill. Origin of agent team composition, pipeline patterns, and `_workspace/` data flow.
+- **[Anthropic Harness Design](https://www.anthropic.com/engineering/harness-design-long-running-apps)** — Official design guide for long-running agent tasks, including Context Reset, Sprint decomposition, Hard Thresholds, and Independent Evaluators.
+- **[Feature-Sliced Design](https://feature-sliced.design/)** — Frontend architecture methodology.
+
+---
+
+## License
+
+MIT
+
+---
+
+<a name="react-native-fsd-agent-template-ko"></a>
+
+# React Native FSD Agent Template (한국어)
+
 AI 에이전트 기반 풀 라이프사이클 개발을 지원하는 React Native + Expo + Feature-Sliced Design 프로덕션 템플릿.
 
 > **What makes this different?** 이 템플릿은 FSD 아키텍처 규칙을 이해하는 8개의 Claude Code 에이전트와 8개의 스킬을 포함합니다. "앱 만들어줘" 한 마디로 아이디어 도출부터 시장 조사 → 기획 → 디자인 시스템 → FSD 모듈 스캐폴딩 → API 연동 → 스크린 개발 → QA 검증까지 전체 파이프라인이 자동으로 실행됩니다.
@@ -54,7 +533,7 @@ Phase 1: Ideation       idea-researcher   시장 조사, 경쟁 앱 분석, 아�
            │
 Phase 2: Planning       product-planner   PRD, 유저 스토리, FSD 모듈 맵 설계
            │
-Phase 2.5: Spec Planning  spec-planner    피처별 스펙 문서, phase/task 분해, 진행 추적
+Phase 2.5: Spec Planning  spec-planner    피처별 스펙 문서, phase/task 분해, 진 행 추적
            │
 Phase 3: Design         design-architect  NativeWind 테마, 화면 레이아웃
            │
@@ -83,7 +562,7 @@ Phase 7: Deployment     /store-deploy → EAS Build → App Store / Google Play
 | **idea-researcher** | 시장 조사, 앱 아이디어 도출 | "앱 아이디어 찾아줘" |
 | **product-planner** | PRD, FSD 모듈 맵, 유저 스토리 | "앱 기획해줘" |
 | **spec-planner** | 피처별 스펙 문서, phase/task 분해, 진행 추적 | Phase 2 완료 후 자동 |
-| **design-architect** | 디자인 시스템, NativeWind 테마 | "디자인 시스템 만들어줘" |
+| **design-architect** | 디자인 시스템, NativeWind 테마 | "디자인 시스템 만들어 줘" |
 | **feature-builder** | FSD 모듈 스캐폴딩 | "feature/entity 만들어줘" |
 | **api-integrator** | Axios + TanStack Query + Zustand | "API 연동해줘" |
 | **ui-developer** | NativeWind 스크린 & UI 컴포넌트 | "스크린 만들어줘" |
@@ -111,7 +590,7 @@ Phase 7: Deployment     /store-deploy → EAS Build → App Store / Google Play
 
 파이프라인은 두 가지 패턴을 혼합합니다.
 
-- **Phase 1–2**: 순차 파이프라인 — 각 에이전트의 출력이 다음 에이전트의 입력이 됩니다.
+- **Phase 1–2**: 순차 파이프라인 — 각 에이전트의 출력이 다음 에이전트의 입력이  됩니다.
 - **Phase 2.5**: Spec Planning — PRD를 `docs/specs/`에 피처별 phase/task로 분해. 이후 구현 진행 추적의 기준이 됩니다.
 - **Phase 3**: Design — 디자인 시스템, 테마, 화면 레이아웃 설계.
 - **Phase 4**: Fan-out (순차) — feature-builder → api-integrator → ui-developer. **각 task 완료 시 spec 체크박스 업데이트**.
@@ -303,7 +782,7 @@ npm run android    # Android Emulator
 app (routing) → widgets → features → entities → shared
 ```
 
-상위 레이어는 하위 레이어만 참조할 수 있습니다. 동일 레벨 간 직접 참조는 금지합니다.
+상위 레이어는 하위 레이어만 참조할 수 있습니다. 동일 레벨 간 직접 참조는 금지합 니다.
 
 ### Adding a New Feature
 
@@ -411,7 +890,7 @@ colors: {
 
 ### 3. API URL
 
-`.env` 파일:
+`.env` file:
 
 ```
 API_URL=http://your-api-server:3000
@@ -462,7 +941,7 @@ feature/* ← Feature branches
 3. eas submit               ← 스토어 제출
 ```
 
-> 클라우드 빌드 크레딧은 월 제한이 있으므로, 로컬 빌드로 Gradle/Xcode 에러를 먼저 잡는다.
+> 클라우드 빌드 크레딧은 월 제한이 있으므로, 로컬 빌드로 Gradle/Xcode 에러를 먼 저 잡는다.
 
 ### .easignore 설정
 
@@ -492,38 +971,13 @@ plugins/
 | **미사용 패키지** | `npm ls` 확인 후 제거 | 번들 크기 감소 |
 | **Lottie 최적화** | 불필요 레이어 제거, 파일 크기 확인 | 1-5MB 가능 |
 
-### 배포 준비 체크리스트
-
-```
-□ 개인정보처리방침 URL 준비 (GitHub Pages 등)
-□ 앱 아이콘 (iOS 1024x1024, Android 512x512)
-□ 스토어 스크린샷 (iOS/Android 각 디바이스별)
-□ Android Feature Graphic (1024x500)
-□ fastlane/metadata/ 메타데이터 (title, description, release notes)
-□ .easignore 최적화
-□ app.config.ts 버전 확인 (기존 스토어 버전보다 높게)
-□ eas.json ascAppId 실제 값 설정 (iOS)
-```
-
-### 플랫폼별 주의사항
-
-**Android:**
-- 첫 번째 AAB 업로드는 Play Console 웹에서 수동 진행
-- `expo-sensors` 사용 시 ACTIVITY_RECOGNITION 권한 → Play Console "건강 앱" 질문 대응 필요
-- 앱 설정 미완료("draft app") 상태에서 fastlane supply API 제한 있음
-
-**iOS:**
-- `eas.json`의 `ascAppId`에 실제 ASC 앱 ID 설정 필수
-- ASC에 이미 높은 버전이 있으면 낮은 버전 업로드 불가
-- `ITSAppUsesNonExemptEncryption: false` 설정 권장
-
 ---
 
 ## Inspired By
 
-- **[revfactory/harness](https://github.com/revfactory/harness)** — Agent Team & Skill Architect 메타 스킬. 에이전트 팀 구성, 파이프라인 패턴, `_workspace/` 데이터 흐름 방식의 원천
+- **[revfactory/harness](https://github.com/revfactory/harness)** — Agent Team & Skill Architect 메타 스킬. 에이전트 팀 구성, 파이프라인 패턴, `_workspace/` 데 이터 흐름 방식의 원천
 - **[Anthropic Harness Design](https://www.anthropic.com/engineering/harness-design-long-running-apps)** — Context Reset, Sprint 분해, Hard Threshold, 독립 Evaluator 등 장시간 에이전트 작업을 위한 공식 설계 가이드.
-- **[Feature-Sliced Design](https://feature-sliced.design/)** — 프론트엔드 아키텍처 방법론
+- **[Feature-Sliced Design](https://feature-sliced.design/)** — 프론트엔드 아키 텍처 방법론
 
 ---
 
