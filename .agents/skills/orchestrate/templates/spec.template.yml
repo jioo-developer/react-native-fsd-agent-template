@@ -1,0 +1,130 @@
+# =============================================================================
+# Pre-flight Survey Spec Template
+# =============================================================================
+# 이 파일은 Phase 0 Pre-flight Survey 의 입력 템플릿이다.
+#
+# 사용법:
+#   1. 이 파일을 `_workspace/spec.md` 로 복사
+#   2. 필드를 채움 (모든 [필수] 필드는 비워두면 안 됨)
+#   3. /orchestrate 실행
+#   4. orchestrate가 spec.md 존재를 감지하면 survey를 건너뛰고 바로 Phase 1 진행
+#
+# 스키마 약속:
+#   - 객관식 필드는 같은 이름의 `<field>_notes` 자유 입력 필드를 가질 수 있다
+#   - `_notes`가 비어있지 않으면 에이전트는 객관식 값보다 _notes 를 우선 반영한다
+#   - `project.context`는 전체 톤앤매너/제약/참고 앱 등 자유 메모. 모든 phase가 항상 읽음
+#
+# 무인 실행 (Unattended):
+#   - execution.unattended: true 로 설정하면 Phase 체크포인트/조건부 질문에서 멈추지 않음
+#   - 자동 결정된 항목은 `_workspace/decisions.log` 에 기록됨
+# =============================================================================
+
+project:
+  name: ""                       # [필수] 앱 슬러그 (예: tintcamera, dueapp)
+  category: ""                   # [필수] photo | productivity | social | finance | health | education | entertainment | utility | ...
+  context: |                     # 자유 입력 — 톤앤매너, 참고 앱, 제약, 비즈니스 맥락 등
+    # 예시:
+    # 피사체보다 색감에 집착하는 사용자가 타겟. VSCO처럼 미니멀하되 필터 미리보기는 라이브.
+    # 광고는 거부감 없게 — 인터스티셜 안 씀. 참고: VSCO, Dazz Cam. 톤은 차분한 다크모드 우선.
+
+execution:
+  unattended: false              # true면 체크포인트/조건부 질문도 자동 결정 (CI/배치용)
+  on_ambiguity: pick_recommended # pick_first | pick_recommended | ask
+  idea_selection: ask            # Phase 1 결과 중 선택 방법: ask | 1 | 2 | 3 | recommended
+  design_selection: ask          # Phase 3 시안 선택: ask | recommended | 1 | 2 | 3
+
+# -----------------------------------------------------------------------------
+# A. 측정·관측
+# -----------------------------------------------------------------------------
+measurement:
+  firebase_analytics: true       # [필수] Firebase Analytics + GA property 연동
+  firebase_analytics_notes: ""
+  crashlytics: true              # [필수]
+  crashlytics_notes: ""
+  remote_config: false           # A/B 테스트 인프라
+  north_star: ""                 # [필수] 북극성 지표 (비우면 LLM이 추천)
+  north_star_notes: ""
+
+# -----------------------------------------------------------------------------
+# B. UX 옵션
+# -----------------------------------------------------------------------------
+ux:
+  onboarding: none               # [필수] none | slideshow | interactive
+  onboarding_notes: ""
+  store_review: false            # [필수] 평점 유도 활성화 여부
+  store_review_notes: ""
+  store_review_triggers: []      # 트리거 액션 ID (LLM 추천 가능). 예: [after_photo_save, after_filter_purchase]
+  store_review_triggers_notes: ""
+  languages: [en, ko]            # [필수] 지원 언어 (다중 선택)
+  dark_mode: system_with_toggle  # [필수] light_only | dark_only | system_with_toggle
+  dark_mode_notes: ""
+  haptics: true                  # [필수]
+  empty_state_illustration: default  # llm_generated | default | none
+
+# -----------------------------------------------------------------------------
+# C. 수익화
+# -----------------------------------------------------------------------------
+monetization:
+  model: none                    # [필수] none | ads | iap | subscription | ads_plus_iap
+  model_notes: ""
+  ad_formats: []                 # [조건부] banner | interstitial | rewarded | native | app_open
+  interstitial_every_n: 3        # [조건부] 인터스티셜 빈도 (N회 액션마다)
+  iap_tiers: []                  # [조건부] weekly | monthly | yearly | one_time
+  paywall_position: ""           # [조건부] after_onboarding | feature_gate | quota_exceeded
+  free_quota: ""                 # [조건부] count:N | days:N | none
+
+# -----------------------------------------------------------------------------
+# D. 인증·사용자
+# -----------------------------------------------------------------------------
+auth:
+  methods: []                    # [필수] [] (게스트only) | [email] | [apple] | [google] | [kakao] | [anonymous_upgrade] (다중 가능)
+  methods_notes: ""
+  account_deletion: ""           # [조건부] in_app | web_page | both (methods≠[]이면 자동 필수)
+  profile_screen: false
+  biometric_gate: none           # none | payment_only | app_lock
+
+# -----------------------------------------------------------------------------
+# E. 데이터·백엔드
+# -----------------------------------------------------------------------------
+backend:
+  type: none                     # [필수] none | firebase | supabase | rest_api
+  type_notes: ""
+  offline_first: false           # [조건부]
+  uploads: false                 # [조건부] 파일/이미지 업로드 필요
+  realtime: false                # [조건부] 실시간 동기화 필요
+  search: ""                     # [조건부] client | server | algolia
+
+# -----------------------------------------------------------------------------
+# F. 네이티브 권한
+# -----------------------------------------------------------------------------
+permissions:
+  media: none                    # [필수] none | photo_only | camera_only | both
+  location: none                 # [필수] none | optional | required
+  push: none                     # [필수] none | local_only | remote_and_local
+  advanced: []                   # [조건부] healthkit | motion | nfc | ble (다중 가능)
+  background: none               # [조건부] none | location | sync | audio
+
+# -----------------------------------------------------------------------------
+# G. 콘텐츠·정책
+# -----------------------------------------------------------------------------
+policy:
+  ugc: false                     # [조건부] 사용자 생성 콘텐츠 (Apple 1.2 — 신고/차단 의무)
+  age_rating: "4+"               # [필수] 4+ | 9+ | 12+ | 17+
+  children_under_13: false       # [조건부] COPPA/Family 모드
+  privacy_url: auto-github-pages # [필수] auto-github-pages | <직접 URL>
+
+# -----------------------------------------------------------------------------
+# H. 배포
+# -----------------------------------------------------------------------------
+deployment:
+  platforms: [ios, android]      # [필수] [ios] | [android] | [ios, android]
+  beta_channel: testflight       # [필수] testflight | internal_testing | both | none
+  aso: llm-generated             # [조건부] llm-generated | manual
+
+# -----------------------------------------------------------------------------
+# I. 기술 옵션
+# -----------------------------------------------------------------------------
+tech:
+  animation_level: normal        # minimal | normal | rich
+  charts: false                  # 차트/그래프 라이브러리 필요
+  custom_camera: false           # [조건부] react-native-vision-camera 사용 (permissions.media에 카메라 포함 시)
