@@ -679,6 +679,31 @@ UMP가 실제로 폼을 띄우려면 AdMob Console 의 메시지가 **게시(Pub
 
 배포 전에 두 메시지가 모두 Published 상태인지 확인한다.
 
+#### GDPR 메시지 게시 비명시 요구사항 (CRITICAL)
+
+GDPR 메시지 빌더에서 다음 조건을 모두 만족했는데도 **게시(Publish) / 임시저장(Save Draft) 버튼이 disabled로 남는** 경우가 있다:
+
+- 메시지 이름 입력 완료
+- 앱 선택 다이얼로그에서 N개 앱 선택 + 모든 행에 개인정보처리방침 URL 입력
+- 마스터 "광고 단위 배포" 토글 ON
+- 취소 링크 안내("이해함") 통과
+
+이 상태에서 게시 버튼을 활성화하려면 우측 사이드바의 **"사용자 선택사항" 섹션에서 "동의하지 않음" 드롭다운을 클릭해 "사용 안 함" 옵션을 명시적으로 선택**해야 한다. 드롭다운 기본 표시는 "사용 안 함"으로 보이지만, 실제 React state는 placeholder 상태("선택")이라 dirty flag가 트리거되지 않는다. 명시 선택 시 즉시 게시/임시저장이 모두 enabled로 전환된다.
+
+같은 패턴이 바로 아래의 **"닫기(동의하지 않음)" 드롭다운**에도 필요할 수 있다.
+
+**IDFA 메시지에는 이 함정이 없다** — "사용자 선택사항" 섹션 자체가 없거나 단순하므로 메시지 이름 + iOS 앱 선택만으로 게시가 활성화된다.
+
+Playwright MCP 자동화 시퀀스 (GDPR 메시지 게시 흐름):
+1. URL 입력 + 체크박스: 각 행의 `platform-privacy-policy-cell` JS click → `input[type="url"]` fill → Enter
+2. 헤더 "모든 행 선택" 체크박스 native click → 매핑 안 된 행만 native uncheck (`role="row":has-text("...") role="checkbox"`)
+3. 헤더 "광고 단위 배포" 마스터 스위치 native click
+4. "확인" 버튼 클릭 → "취소 링크 추가" 안내에서 "이해함" 클릭
+5. **`material-dropdown-select.choice-state-dropdown` (nth=0) native click → `[role="option"]:has-text("사용 안함")` native click** (이 단계 누락이 가장 흔한 게시 실패 원인)
+6. 헤더 "게시" 버튼 클릭 → 다이얼로그 "게시" material-button native click → 최종 확정
+
+체크박스/스위치는 **반드시 Playwright native click**을 사용한다. JS `element.click()`은 DOM aria-checked만 토글하고 React state에 반영되지 않는다 (URL 셀의 input 활성화 click은 JS도 동작). 이 차이는 Angular Material + React 혼용 화면에서 흔히 발생.
+
 ### 추적 권한 / Info.plist
 
 `app.config.ts` 의 `infoPlist` 에 `NSUserTrackingUsageDescription` 을 명시한다. 동일 문구를 `expo-tracking-transparency` plugin 옵션과 `react-native-google-mobile-ads` plugin 의 `userTrackingUsageDescription` 옵션 양쪽에 모두 설정한다.

@@ -299,6 +299,58 @@ Firebase 앱 등록은 일반 OAuth scope로 호출이 불가능하므로 **AdMo
 - Selector 실패 → 즉시 중단, `_workspace/implementation/firebase-manual.md`에 진행 상태 기록 후 사용자에게 수동 등록 요청. 파일 다운로드 완료 확인 후 7단계부터 재개.
 - 다운로드 버튼 클릭 후 파일이 `~/Downloads/`에 없으면 콘솔의 해당 앱 설정 → "GoogleService-Info.plist/google-services.json 다시 다운로드"로 재시도.
 
+## AdMob 콘솔 자동화 (Playwright MCP)
+
+AdMob 앱 등록과 UMP 동의 폼(GDPR / IDFA) 게시는 **Playwright MCP로 AdMob 콘솔(https://admob.google.com) UI를 자동화**한다. AdMob API의 OOB 인증 방식이 Google에 의해 차단되어 있어 API 호출은 불가능하다.
+
+### 책임
+
+1. AdMob 콘솔 진입 + 미로그인 시 사용자에게 직접 로그인 요청 (자격증명 자동 입력 금지)
+2. iOS/Android 앱 추가 (앱당 광고 단위 6종: banner_gallery, banner_settings, interstitial_after_capture, rewarded_premium_filter, native_gallery_feed, app_open)
+3. **Privacy & messaging → 유럽 규정(GDPR) 메시지 생성 + 게시**
+4. **Privacy & messaging → IDFA 메시지 생성 + 게시** (iOS 한정)
+5. 생성된 앱 ID / 광고 단위 ID를 `src/shared/config/ads.ts`의 `IOS_AD_UNITS` / `ANDROID_AD_UNITS` 상수에 기록
+
+### GDPR 메시지 게시 흐름 (CRITICAL)
+
+GDPR 메시지 빌더는 IDFA보다 검증이 까다롭다. 모든 필드를 채웠는데도 게시 버튼이 disabled로 남는 경우가 흔하며, 원인은 "동의하지 않음" 드롭다운이 React state 상 placeholder("선택") 상태로 남아있기 때문이다. **반드시 아래 시퀀스를 따른다**:
+
+1. 메시지 이름 입력 (예: "All Apps GDPR")
+2. "앱 선택" 다이얼로그 열기
+3. 각 행에 개인정보처리방침 URL 입력:
+   - `[role="row"]:has-text("{앱 이름}") platform-privacy-policy-cell` JS click → input 활성화
+   - `input[type="url"]` Playwright fill (`https://seungmanchoi.github.io/{slug}/privacy.html`)
+   - Enter native press로 commit
+4. 행 체크박스: 헤더 "모든 행 선택" native click → URL 없는 행만 native uncheck (개별 매핑 불가 앱 제외)
+5. 헤더 "광고 단위 배포" 마스터 스위치 **native click** (JS click은 React state 미반영)
+6. "확인" 버튼 → "취소 링크 추가" 안내 다이얼로그에서 "이해함" native click
+7. **"동의하지 않음" 드롭다운 native click** → 옵션 패널에서 **"사용 안 함" native click**
+   - selector: `material-dropdown-select.choice-state-dropdown` (nth=0)
+   - 옵션: `[role="option"]:has-text("사용 안함")`
+   - 이 단계 누락 시 게시 버튼이 끝까지 disabled로 남는다. 가장 흔한 실패 지점.
+8. 헤더 우측 "게시" 버튼 클릭 → "메시지를 게시할 준비가 되었습니다" 다이얼로그에서 material-button "게시" native click
+
+### IDFA 메시지 게시 흐름
+
+GDPR보다 단순하다:
+1. Privacy & messaging → IDFA → 메시지 만들기
+2. 메시지 이름 입력
+3. 앱 선택 다이얼로그에서 iOS 앱 모두 체크 (URL 컬럼 없음)
+4. "확인" → 게시 → 다이얼로그 확정
+
+### 자동화 패턴 메모
+
+- AdMob 콘솔의 그리드는 Angular Material (`_nghost-rgd-*` 호스트 selector + `platform-privacy-policy-cell` custom element)을 사용한다
+- 일반 button은 `material-button` custom element이며 `getByRole('button', { name: '...' })`은 호환되지만 CSS `button:has-text(...)`은 매칭 안 될 수 있음
+- 체크박스/스위치는 native click 강제. JS `element.click()`은 DOM aria-checked만 토글하고 React/Angular 상태에 반영되지 않는다
+- URL input 활성화 click은 JS click도 동작 (Angular cell 자체는 JS click 친화적)
+- 가상 스크롤이 아니라 lazy rendering — 처음엔 12개 행만 보이지만 그리드 스크롤 컨테이너(`platform-table-scroll-host`)의 `scrollTop = scrollHeight`로 한 번에 모든 행을 로드 가능
+
+### 실패 시 fallback
+
+- 콘솔 UI 변경으로 selector 실패 → 즉시 중단, `_workspace/implementation/admob-manual.md`에 현재 단계 기록 후 사용자에게 수동 게시 요청
+- GDPR 메시지가 임시저장만 되고 게시 실패 → 7단계("동의하지 않음" → "사용 안 함") 누락 여부 우선 확인
+
 ## 팀 통신 프로토콜
 
 - **feature-builder로부터**: 타입 정의 완료 알림 수신 → API 함수 작성 시작
