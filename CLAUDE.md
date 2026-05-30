@@ -385,8 +385,11 @@ plugins: [
   '@react-native-firebase/app',
   '@react-native-firebase/crashlytics',
   ['expo-build-properties', { ios: { useFrameworks: 'static' } }],
+  './plugins/withRNFirebaseStaticBuild', // ← RNFB + RN 0.81 + new arch + static frameworks 빌드 패치 (필수)
 ],
 ```
+
+> **`withRNFirebaseStaticBuild` 플러그인은 RNFirebase + RN 0.81 + New Architecture + Static Frameworks 조합에서 발생하는 3가지 빌드 이슈를 자동으로 해결한다.** `plugins/withRNFirebaseStaticBuild.js`로 템플릿에 포함되어 있다. 자세한 내용은 [iOS 빌드 트러블슈팅 > RNFirebase 통합 시 빌드 실패](#rn-firebase-통합-시-빌드-실패-rn-081--new-arch--static-frameworks) 섹션 참고.
 
 #### 4단계: `src/shared/analytics/` 모듈 작성
 래퍼(`client.ts`)·이벤트 카탈로그(`events.ts`)·`useScreenTracking` 훅·barrel export.
@@ -831,6 +834,27 @@ build-output/
 | `xcodebuild -showBuildSettings` 타임아웃 (fastlane 단계) | Apple Silicon + RN 0.81 + SPM 의존성 해석 시간 초과. 기본 3초 4회 retry로 부족 | 빌드 명령 앞에 `FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT=120 FASTLANE_XCODEBUILD_SETTINGS_RETRIES=8` 환경변수 설정 |
 | "Multiple commands produce .../InfoPlist.strings" | `app.config.ts`의 `locales` 필드와 `withLocalizedAppName` plugin이 둘 다 PBXVariantGroup을 등록 | 위 "앱 이름 일관성" 항목 참고. plugin은 `locales` 사용 시 자동으로 iOS 처리를 생략함. 각 언어 JSON에 `CFBundleDisplayName` 추가 |
 | `eas submit` "You've already submitted this version" | 동일 `expo.version`이 이미 ASC에 업로드됨 (TestFlight도 동일 version+build 조합 거부) | `app.config.ts`의 `APP_VERSION` 패치(예: 1.0.2 → 1.0.3) 후 재빌드 |
+| `non-modular-include-in-framework-module` / `RCT_EXPORT_METHOD ... type specifier missing` / `fmt::basic_format_string ... call to consteval function is not a constant expression` | RNFirebase + RN 0.81 + New Architecture + `useFrameworks: 'static'` 조합의 alleged 비호환. 자세한 원인은 아래 항목 참고 | `./plugins/withRNFirebaseStaticBuild` plugin을 `app.config.ts`의 `plugins`에 추가 + `npx expo prebuild --clean` |
+
+#### RN Firebase 통합 시 빌드 실패 (RN 0.81 + new arch + static frameworks)
+
+**RNFirebase + RN 0.81 + New Architecture + `useFrameworks: 'static'`** 4개 조건이 동시에 켜지면 iOS 빌드가 다음 순서로 3가지 에러를 차례로 뱉는다. **모두 정상이며, 템플릿에 포함된 `plugins/withRNFirebaseStaticBuild.js`를 활성화하면 한 번에 해결된다.**
+
+1. **`-Wnon-modular-include-in-framework-module`**
+   - RNFirebase 헤더(예: `RCTConvert+FIRApp.h`)가 React-Core 헤더(`<React/RCTConvert.h>`)를 non-modular import. static framework 모드에서는 Clang module system이 거부.
+   - 패치: Podfile에 `use_modular_headers!` 주입 + post_install에서 `CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES` 강제.
+
+2. **`RCT_EXPORT_METHOD ... type specifier missing, defaults to 'int'`**
+   - RN 0.81 + new arch에서 React-Core가 **prebuilt binary**로 제공되는데, prebuilt 모듈은 preprocessor 매크로(`RCT_EXPORT_METHOD` 등)를 module map으로 export하지 않는다. RNFirebase의 ObjC 모듈(`RNFBAnalyticsModule.m`, `RNFBCrashlyticsModule.m`)이 매크로 expand에 실패해서 syntax error.
+   - 패치: Podfile 최상단에 `ENV['RCT_USE_PREBUILT_RNCORE'] = '0'` 설정 → React-Core 소스 빌드 (빌드 시간 +5분 정도 증가하지만 매크로 정상 동작).
+
+3. **`fmt::basic_format_string ... call to consteval function is not a constant expression`**
+   - React-Core를 소스 빌드하면 fmt 11이 의존성으로 끌려 들어오는데, fmt 11은 `__cpp_consteval` 또는 `FMT_CLANG_VERSION >= 1101` 분기에서 `FMT_USE_CONSTEVAL=1`로 활성화. Apple Clang 16의 더 엄격한 consteval 평가가 fmt 자체의 format string을 거부.
+   - 패치: post_install에서 `Pods/fmt/include/fmt/base.h`의 모든 `#  define FMT_USE_CONSTEVAL 1` 라인을 `0`으로 rewrite.
+
+**참조 구현**: `plugins/withRNFirebaseStaticBuild.js` — 위 3개 패치를 모두 포함하며 idempotent. `app.config.ts`의 `plugins`에 `'./plugins/withRNFirebaseStaticBuild'`를 추가하고 `npx expo prebuild --clean`만 실행하면 자동 적용.
+
+**RN Firebase 버전 권장**: RN 0.81 + New Arch에서는 **`@react-native-firebase/* >= 24.0.0`**을 사용한다. 21.x는 ObjC RCT 매크로 호환성이 약하다.
 
 ### Android 빌드 트러블슈팅
 
