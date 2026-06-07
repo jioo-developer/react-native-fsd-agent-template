@@ -31,12 +31,16 @@
   <img src="https://img.shields.io/badge/Flash_List-2-FF6C37?style=flat-square&logo=shopify&logoColor=white" />
   <img src="https://img.shields.io/badge/Bottom_Sheet-5-000000?style=flat-square" />
   <img src="https://img.shields.io/badge/Day.js-1.11-FF5F4C?style=flat-square" />
+  <img src="https://img.shields.io/badge/Firebase_Analytics-24-FFCA28?style=flat-square&logo=firebase&logoColor=black" />
+  <img src="https://img.shields.io/badge/AdMob-16-EA4335?style=flat-square&logo=googleads&logoColor=white" />
+  <img src="https://img.shields.io/badge/SecureStore-Keychain%20%7C%20Keystore-4630EB?style=flat-square&logo=expo&logoColor=white" />
+  <img src="https://img.shields.io/badge/Vitest-4-6E9F18?style=flat-square&logo=vitest&logoColor=white" />
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-iOS%20%7C%20Android%20%7C%20Web-lightgrey?style=flat-square" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/node-%3E%3D18-339933?style=flat-square&logo=nodedotjs&logoColor=white" />
+  <img src="https://img.shields.io/badge/node-%3E%3D24-339933?style=flat-square&logo=nodedotjs&logoColor=white" />
 </p>
 
 [English](./README.md) | **한국어**
@@ -45,7 +49,7 @@
 
 AI 에이전트 기반 풀 라이프사이클 개발을 지원하는 React Native + Expo + Feature-Sliced Design 프로덕션 템플릿.
 
-> **What makes this different?** 이 템플릿은 FSD 아키텍처 규칙을 이해하는 8개의 Claude Code 에이전트와 8개의 스킬을 포함합니다. "앱 만들어줘" 한 마디로 아이디어 도출부터 시장 조사 → 기획 → 디자인 시스템 → FSD 모듈 스캐폴딩 → API 연동 → 스크린 개발 → QA 검증까지 전체 파이프라인이 자동으로 실행됩니다.
+> **What makes this different?** 이 템플릿은 FSD 아키텍처 규칙을 이해하는 9개의 Claude Code 에이전트와 8개의 스킬을 포함합니다. "앱 만들어줘" 한 마디로 아이디어 도출부터 시장 조사 → 기획 → 디자인 시스템 → FSD 모듈 스캐폴딩 → API 연동 → 스크린 개발 → QA 검증까지 전체 파이프라인이 자동으로 실행됩니다.
 
 ---
 
@@ -153,7 +157,65 @@ Phase 7: Deployment     /store-deploy → EAS Build → App Store / Google Play
 | Bottom Sheet | @gorhom/bottom-sheet 5 |
 | Date | Day.js |
 | Lint & Format | ESLint 9 + Prettier 3 |
+| Testing | Vitest 4 |
+| Ads | react-native-google-mobile-ads 16 (UMP consent + ATT) |
+| Analytics | Firebase Analytics 24 (adapter, Expo Go 자동 no-op) |
+| Secure Storage | expo-secure-store (Keychain / Keystore) |
+| i18n | i18n-js |
 | Build & Deploy | EAS Build / EAS Submit |
+
+---
+
+## Production Modules
+
+에이전트 하네스 외에도, 이 템플릿은 수익화·측정·보안 인증을 위한 **바로 쓸 수 있는 프로덕션 모듈**을 기본 내장합니다. 각 모듈은 FSD 레이어링과 단일 진입점 규칙을 따릅니다.
+
+### 광고 — AdMob (`src/features/ads/`)
+
+UMP(GDPR) 동의, iOS ATT, SDK 초기화를 **필수 순서**로 실행합니다. 루트 레이아웃은 **오직** `initializeAdsWithConsent()` 만 await 합니다:
+
+```tsx
+// app/_layout.tsx
+import { initializeAdsWithConsent } from '@features/ads';
+useEffect(() => { void initializeAdsWithConsent(); }, []);
+```
+
+```
+UMP(GDPR) 동의  →  iOS ATT 프롬프트  →  mobileAds().initialize()
+```
+
+- 훅: `useInterstitialAd`, `useRewardedAd`, `useAppOpenAd`, `useAdLifecycle`, `usePremiumGuard`
+- 컴포넌트: `AdBanner`, `AdDevPanel` (개발 전용 테스트 패널)
+- 빈도 제한·프리미엄 게이팅은 `useAdStore` / `usePremiumStore` (Zustand)
+- 개발 환경은 Google **테스트 광고 단위**, 프로덕션은 `src/shared/config/ads.ts`의 실제 ID 사용
+- 핵심 액션 직전이나 카메라/핵심 화면에는 **절대** 광고 배치 금지
+
+### Analytics — Firebase (`src/shared/lib/analytics/`)
+
+**Firebase / no-op 어댑터**를 가진 얇은 래퍼 — Expo Go(네이티브 모듈 없음)에서는 자동으로 no-op으로 폴백하고, 개발 환경에서는 수집이 비활성화됩니다.
+
+```ts
+import { initAnalytics, logEvent, logScreenView } from '@shared/lib/analytics';
+```
+
+- 래퍼만 사용 — `firebase.analytics()` 직접 호출 금지
+- 이벤트 이름은 `EAnalyticsEvent`에 정의(매직 스트링 금지), 파라미터에 PII 금지
+
+### 보안 토큰 저장 (`src/shared/api/client.ts`)
+
+인증 토큰은 평문 AsyncStorage가 아니라 **`expo-secure-store` 기반 Keychain / Keystore**(`tokenManager`)에 저장됩니다. Axios 클라이언트는 `401` 시 자동으로 토큰을 갱신하고, 새 토큰이 올 때까지 동시 요청을 큐에 쌓아 재시도합니다.
+
+```ts
+import { api, tokenManager, setAuthFailureCallback } from '@shared/api';
+```
+
+### Config Plugins (`plugins/`)
+
+| Plugin | 역할 |
+|--------|------|
+| `withRNFirebaseStaticBuild` | RN 0.81 + New Arch + static frameworks iOS 빌드 패치(3종 에러 자동 해결) |
+| `withLocalizedAppName` | 홈화면 다국어 앱 이름(iOS `InfoPlist.strings` / Android `strings.xml`) |
+| `withLocalizedAttDescription` | iOS ATT 프롬프트 다국어 메시지(Android no-op) |
 
 ---
 
@@ -233,11 +295,12 @@ npm run android    # Android Emulator
 │       └── orchestrate/                # Full pipeline orchestration
 │
 ├── docs/
-│   └── specs/                         # 피처별 스펙 문서 (spec-planner 출력)
-│       ├── README.md                  # 진행 현황 대시보드
-│       └── {NN}-{feature}/            # 피처별 phase 파일
-│           ├── phase1-mvp.md
-│           └── phase2-enhancement.md
+│   ├── specs/                         # 피처별 스펙 문서 (spec-planner 출력)
+│   │   ├── README.md                  # 진행 현황 대시보드
+│   │   └── {NN}-{feature}/            # 피처별 phase 파일
+│   │       ├── phase1-mvp.md
+│   │       └── phase2-enhancement.md
+│   └── troubleshooting.md             # 빌드/런타임 트러블슈팅
 │
 ├── _workspace/                         # 에이전트 간 데이터 교환
 │   ├── idea/                           # Phase 1 출력
@@ -247,7 +310,7 @@ npm run android    # Android Emulator
 │   └── qa/                             # Phase 5 출력
 │
 ├── app/                                # Expo Router (file-based routing)
-│   ├── _layout.tsx                     # Root layout (providers)
+│   ├── _layout.tsx                     # Root layout (providers + ads/analytics init)
 │   ├── (auth)/                         # Auth group (unauthenticated)
 │   │   ├── _layout.tsx
 │   │   └── login.tsx
@@ -262,11 +325,17 @@ npm run android    # Android Emulator
 │   │   └── providers/                  # QueryProvider, ThemeProvider
 │   │
 │   ├── features/                       # Business logic features
-│   │   └── auth/                       # Example: authentication
-│   │       ├── api/                    # API calls
-│   │       ├── hooks/                  # useLogin, useSignup
-│   │       ├── types/                  # ILoginRequest, ILoginResponse
-│   │       └── index.ts                # Public API
+│   │   ├── auth/                       # Example: authentication
+│   │   │   ├── api/                    # API calls
+│   │   │   ├── hooks/                  # useLogin, useSignup
+│   │   │   ├── types/                  # ILoginRequest, ILoginResponse
+│   │   │   └── index.ts                # Public API
+│   │   └── ads/                        # AdMob: UMP+ATT consent, ad hooks, premium store
+│   │       ├── lib/consent.ts          # initializeAdsWithConsent (UMP→ATT→init)
+│   │       ├── hooks/                  # useInterstitialAd, useRewardedAd, useAppOpenAd
+│   │       ├── ui/                     # AdBanner, AdDevPanel
+│   │       ├── store/                  # ad / premium Zustand stores
+│   │       └── index.ts
 │   │
 │   ├── entities/                       # Domain models
 │   │   └── user/                       # Example: user entity
@@ -278,16 +347,23 @@ npm run android    # Android Emulator
 │   ├── widgets/                        # Independent UI blocks
 │   │
 │   └── shared/                         # Shared code
-│       ├── api/                        # Axios client + token management
-│       ├── config/                     # Environment, theme
-│       ├── lib/                        # Custom hooks, utils
+│       ├── api/                        # Axios client + tokenManager (SecureStore) + 401 refresh
+│       ├── config/                     # env, theme, ads (ad unit IDs)
+│       ├── lib/
+│       │   └── analytics/              # Firebase + no-op adapter (initAnalytics, logEvent)
 │       ├── types/                      # Common types
 │       └── ui/                         # UI components
 │
+├── plugins/                            # Expo config plugins
+│   ├── withRNFirebaseStaticBuild.js    # RN 0.81 + New Arch iOS build patch
+│   ├── withLocalizedAppName.js         # Localized home-screen app name
+│   └── withLocalizedAttDescription.js  # Localized iOS ATT prompt
+├── firebase/                           # GoogleService-*.{plist,json} (gitignored)
 ├── app.config.ts                       # Expo config (dynamic)
 ├── tailwind.config.js                  # NativeWind/Tailwind config
 ├── tsconfig.json                       # TypeScript (path aliases)
 ├── eslint.config.js                    # ESLint 9 Flat Config
+├── vitest.config.ts                    # Vitest test runner config
 ├── .prettierrc.js                      # Prettier rules
 ├── eas.json                            # EAS Build profiles
 └── CLAUDE.md                           # Claude Code instructions
@@ -364,18 +440,21 @@ import { useUserStore } from '@entities/user';
 ## Available Scripts
 
 ```bash
-npm start              # Dev server (LAN mode)
-npm run start:local    # Dev server (localhost)
-npm run start:tunnel   # Dev server (tunnel)
-npm run ios            # Run on iOS
-npm run android        # Run on Android
-npm run web            # Run on Web
-npm run lint           # ESLint 9 check
-npm test               # Vitest unit tests
-npm run typecheck      # TypeScript check
-npm run format         # Prettier format
-npm run eas:build:dev  # EAS development build
-npm run eas:build:prod # EAS production build
+npm start                 # Dev server (LAN mode)
+npm run start:local       # Dev server (localhost)
+npm run start:tunnel      # Dev server (tunnel)
+npm run ios               # Run on iOS
+npm run android           # Run on Android
+npm run web               # Run on Web
+npm run lint              # ESLint 9 check
+npm test                  # Vitest unit tests (run once)
+npm run test:watch        # Vitest watch mode
+npm run typecheck         # TypeScript check
+npm run format            # Prettier format
+npm run eas:build:dev     # EAS development build
+npm run eas:build:preview # EAS preview build
+npm run eas:build:prod    # EAS production build
+npm run eas:update        # EAS Update (preview branch)
 ```
 
 ---
@@ -429,6 +508,46 @@ eas build:configure    # EAS 초기 설정
 
 ---
 
+## Environment Variables
+
+앱 설정은 `app.config.ts` → `extra` → `src/shared/config/env.ts` 순으로 전달됩니다.
+
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `API_URL` | `http://localhost:3000/api/v1` | 백엔드 base URL |
+| `NODE_ENV` | `development` | 환경 모드 |
+| `DEBUG` | `false` | 디버그 플래그 |
+| `LOG_LEVEL` | `debug` | 로그 레벨 |
+| `APP_VERSION` | `1.0.0` | 앱 버전 (iOS/Android) |
+
+**Firebase 시크릿** — 절대 커밋 금지 (`firebase/`에 두고 gitignore):
+
+| 변수 | 파일 |
+|------|------|
+| `GOOGLE_SERVICE_INFO_PLIST` | `firebase/GoogleService-Info.plist` (iOS) |
+| `GOOGLE_SERVICES_JSON` | `firebase/google-services.json` (Android) |
+
+EAS 클라우드 빌드에서는 시크릿으로 주입합니다:
+
+```bash
+eas secret:create --scope project --name GOOGLE_SERVICE_INFO_PLIST --type file --value ./firebase/GoogleService-Info.plist
+eas secret:create --scope project --name GOOGLE_SERVICES_JSON --type file --value ./firebase/google-services.json
+```
+
+---
+
+## Testing
+
+```bash
+npm test            # Vitest, 1회 실행
+npm run test:watch  # Vitest, watch 모드
+```
+
+- 테스트 파일은 소스 옆에 `src/**/*.test.ts(x)` 형태로 위치
+- `npm run typecheck`(0 에러)와 `npm run lint`(0 에러)는 **Hard Threshold** 게이트 — `CLAUDE.md` 참고
+
+---
+
 ## Naming Conventions
 
 | Type | Prefix | Example |
@@ -465,6 +584,19 @@ feature/* ← Feature branches
 ```
 
 > 클라우드 빌드 크레딧은 월 제한이 있으므로, 로컬 빌드로 Gradle/Xcode 에러를 먼 저 잡는다.
+
+### EAS 빌드 프로필 (`eas.json`)
+
+| 프로필 | 용도 |
+|--------|------|
+| `development-simulator` | iOS 시뮬레이터 개발 빌드 |
+| `development` | 실기기 개발 빌드 (dev client) |
+| `preview` | 내부 배포용 |
+| `production` | 스토어 배포용 (빌드 번호 자동 증가) |
+
+### iOS — Firebase Static Build
+
+RN Firebase + RN 0.81 + New Architecture + static frameworks 조합은 iOS 빌드에서 알려진 3종 에러를 유발한다. 템플릿에 포함된 **`withRNFirebaseStaticBuild`** 플러그인이 이를 모두 자동으로 해결한다 — `app.config.ts`의 plugins에 유지하고 `npx expo prebuild --clean`만 실행하면 된다. 자세한 내용은 [`docs/troubleshooting.md`](./docs/troubleshooting.md)와 `CLAUDE.md` 참고.
 
 ### .easignore 설정
 

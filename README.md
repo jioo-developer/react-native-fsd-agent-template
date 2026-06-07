@@ -31,12 +31,16 @@
   <img src="https://img.shields.io/badge/Flash_List-2-FF6C37?style=flat-square&logo=shopify&logoColor=white" />
   <img src="https://img.shields.io/badge/Bottom_Sheet-5-000000?style=flat-square" />
   <img src="https://img.shields.io/badge/Day.js-1.11-FF5F4C?style=flat-square" />
+  <img src="https://img.shields.io/badge/Firebase_Analytics-24-FFCA28?style=flat-square&logo=firebase&logoColor=black" />
+  <img src="https://img.shields.io/badge/AdMob-16-EA4335?style=flat-square&logo=googleads&logoColor=white" />
+  <img src="https://img.shields.io/badge/SecureStore-Keychain%20%7C%20Keystore-4630EB?style=flat-square&logo=expo&logoColor=white" />
+  <img src="https://img.shields.io/badge/Vitest-4-6E9F18?style=flat-square&logo=vitest&logoColor=white" />
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-iOS%20%7C%20Android%20%7C%20Web-lightgrey?style=flat-square" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/node-%3E%3D18-339933?style=flat-square&logo=nodedotjs&logoColor=white" />
+  <img src="https://img.shields.io/badge/node-%3E%3D24-339933?style=flat-square&logo=nodedotjs&logoColor=white" />
 </p>
 
 **English** | [한국어](./README.ko.md)
@@ -45,7 +49,7 @@
 
 A React Native + Expo + Feature-Sliced Design production template that supports AI agent-based full-lifecycle development.
 
-> **What makes this different?** This template includes 8 Claude Code agents and 8 skills that understand FSD architecture rules. With a single "Make an app" command, the entire pipeline—from ideation to market research, planning, design system, FSD module scaffolding, API integration, screen development, and QA verification—runs automatically.
+> **What makes this different?** This template includes 9 Claude Code agents and 8 skills that understand FSD architecture rules. With a single "Make an app" command, the entire pipeline—from ideation to market research, planning, design system, FSD module scaffolding, API integration, screen development, and QA verification—runs automatically.
 
 ---
 
@@ -153,7 +157,65 @@ Designed based on [Anthropic's official Harness Engineering Guide](https://www.a
 | Bottom Sheet | @gorhom/bottom-sheet 5 |
 | Date | Day.js |
 | Lint & Format | ESLint 9 + Prettier 3 |
+| Testing | Vitest 4 |
+| Ads | react-native-google-mobile-ads 16 (UMP consent + ATT) |
+| Analytics | Firebase Analytics 24 (adapter, auto no-op on Expo Go) |
+| Secure Storage | expo-secure-store (Keychain / Keystore) |
+| i18n | i18n-js |
 | Build & Deploy | EAS Build / EAS Submit |
+
+---
+
+## Production Modules
+
+Beyond the agent harness, the template ships with **production-ready modules already wired up** for monetization, measurement, and secure auth. Each follows FSD layering and a single-entry-point rule.
+
+### Ads — AdMob (`src/features/ads/`)
+
+UMP (GDPR) consent, iOS ATT, and SDK init run in the **mandatory order**. The root layout awaits **only** `initializeAdsWithConsent()`:
+
+```tsx
+// app/_layout.tsx
+import { initializeAdsWithConsent } from '@features/ads';
+useEffect(() => { void initializeAdsWithConsent(); }, []);
+```
+
+```
+UMP (GDPR) consent  →  iOS ATT prompt  →  mobileAds().initialize()
+```
+
+- Hooks: `useInterstitialAd`, `useRewardedAd`, `useAppOpenAd`, `useAdLifecycle`, `usePremiumGuard`
+- Components: `AdBanner`, `AdDevPanel` (dev-only test panel)
+- Frequency caps & premium gating via `useAdStore` / `usePremiumStore` (Zustand)
+- Dev uses Google **test ad units**; production uses real IDs in `src/shared/config/ads.ts`
+- **Never** place ads right before a key action or on a camera/core screen
+
+### Analytics — Firebase (`src/shared/lib/analytics/`)
+
+A thin wrapper with a **Firebase / no-op adapter** — on Expo Go (no native module) it falls back to a no-op automatically, and collection is off in dev.
+
+```ts
+import { initAnalytics, logEvent, logScreenView } from '@shared/lib/analytics';
+```
+
+- Use the wrapper only — never call `firebase.analytics()` directly
+- Event names live in `EAnalyticsEvent` (no magic strings); never put PII in params
+
+### Secure Token Storage (`src/shared/api/client.ts`)
+
+Auth tokens are kept in **Keychain / Keystore via `expo-secure-store`** (`tokenManager`), never in plaintext AsyncStorage. The Axios client auto-refreshes on `401` and queues concurrent requests until the new token arrives.
+
+```ts
+import { api, tokenManager, setAuthFailureCallback } from '@shared/api';
+```
+
+### Config Plugins (`plugins/`)
+
+| Plugin | Role |
+|--------|------|
+| `withRNFirebaseStaticBuild` | Patches the RN 0.81 + New Arch + static-frameworks iOS build (fixes 3 known errors automatically) |
+| `withLocalizedAppName` | Localized home-screen app name (iOS `InfoPlist.strings` / Android `strings.xml`) |
+| `withLocalizedAttDescription` | Localized iOS ATT prompt message (no-op on Android) |
 
 ---
 
@@ -233,11 +295,12 @@ npm run android    # Android Emulator
 │       └── orchestrate/                # Full pipeline orchestration
 │
 ├── docs/
-│   └── specs/                         # Feature spec docs (spec-planner output)
-│       ├── README.md                  # Progress dashboard
-│       └── {NN}-{feature}/            # Feature-specific phase files
-│           ├── phase1-mvp.md
-│           └── phase2-enhancement.md
+│   ├── specs/                         # Feature spec docs (spec-planner output)
+│   │   ├── README.md                  # Progress dashboard
+│   │   └── {NN}-{feature}/            # Feature-specific phase files
+│   │       ├── phase1-mvp.md
+│   │       └── phase2-enhancement.md
+│   └── troubleshooting.md             # Build/runtime troubleshooting
 │
 ├── _workspace/                         # Data exchange between agents
 │   ├── idea/                           # Phase 1 output
@@ -247,7 +310,7 @@ npm run android    # Android Emulator
 │   └── qa/                             # Phase 5 output
 │
 ├── app/                                # Expo Router (file-based routing)
-│   ├── _layout.tsx                     # Root layout (providers)
+│   ├── _layout.tsx                     # Root layout (providers + ads/analytics init)
 │   ├── (auth)/                         # Auth group (unauthenticated)
 │   │   ├── _layout.tsx
 │   │   └── login.tsx
@@ -262,11 +325,17 @@ npm run android    # Android Emulator
 │   │   └── providers/                  # QueryProvider, ThemeProvider
 │   │
 │   ├── features/                       # Business logic features
-│   │   └── auth/                       # Example: authentication
-│   │       ├── api/                    # API calls
-│   │       ├── hooks/                  # useLogin, useSignup
-│   │       ├── types/                  # ILoginRequest, ILoginResponse
-│   │       └── index.ts                # Public API
+│   │   ├── auth/                       # Example: authentication
+│   │   │   ├── api/                    # API calls
+│   │   │   ├── hooks/                  # useLogin, useSignup
+│   │   │   ├── types/                  # ILoginRequest, ILoginResponse
+│   │   │   └── index.ts                # Public API
+│   │   └── ads/                        # AdMob: UMP+ATT consent, ad hooks, premium store
+│   │       ├── lib/consent.ts          # initializeAdsWithConsent (UMP→ATT→init)
+│   │       ├── hooks/                  # useInterstitialAd, useRewardedAd, useAppOpenAd
+│   │       ├── ui/                     # AdBanner, AdDevPanel
+│   │       ├── store/                  # ad / premium Zustand stores
+│   │       └── index.ts
 │   │
 │   ├── entities/                       # Domain models
 │   │   └── user/                       # Example: user entity
@@ -278,16 +347,23 @@ npm run android    # Android Emulator
 │   ├── widgets/                        # Independent UI blocks
 │   │
 │   └── shared/                         # Shared code
-│       ├── api/                        # Axios client + token management
-│       ├── config/                     # Environment, theme
-│       ├── lib/                        # Custom hooks, utils
+│       ├── api/                        # Axios client + tokenManager (SecureStore) + 401 refresh
+│       ├── config/                     # env, theme, ads (ad unit IDs)
+│       ├── lib/
+│       │   └── analytics/              # Firebase + no-op adapter (initAnalytics, logEvent)
 │       ├── types/                      # Common types
 │       └── ui/                         # UI components
 │
+├── plugins/                            # Expo config plugins
+│   ├── withRNFirebaseStaticBuild.js    # RN 0.81 + New Arch iOS build patch
+│   ├── withLocalizedAppName.js         # Localized home-screen app name
+│   └── withLocalizedAttDescription.js  # Localized iOS ATT prompt
+├── firebase/                           # GoogleService-*.{plist,json} (gitignored)
 ├── app.config.ts                       # Expo config (dynamic)
 ├── tailwind.config.js                  # NativeWind/Tailwind config
 ├── tsconfig.json                       # TypeScript (path aliases)
 ├── eslint.config.js                    # ESLint 9 Flat Config
+├── vitest.config.ts                    # Vitest test runner config
 ├── .prettierrc.js                      # Prettier rules
 ├── eas.json                            # EAS Build profiles
 └── CLAUDE.md                           # Claude Code instructions
@@ -364,18 +440,21 @@ import { useUserStore } from '@entities/user';
 ## Available Scripts
 
 ```bash
-npm start              # Dev server (LAN mode)
-npm run start:local    # Dev server (localhost)
-npm run start:tunnel   # Dev server (tunnel)
-npm run ios            # Run on iOS
-npm run android        # Run on Android
-npm run web            # Run on Web
-npm run lint           # ESLint 9 check
-npm test               # Vitest unit tests
-npm run typecheck      # TypeScript check
-npm run format         # Prettier format
-npm run eas:build:dev  # EAS development build
-npm run eas:build:prod # EAS production build
+npm start                 # Dev server (LAN mode)
+npm run start:local       # Dev server (localhost)
+npm run start:tunnel      # Dev server (tunnel)
+npm run ios               # Run on iOS
+npm run android           # Run on Android
+npm run web               # Run on Web
+npm run lint              # ESLint 9 check
+npm test                  # Vitest unit tests (run once)
+npm run test:watch        # Vitest watch mode
+npm run typecheck         # TypeScript check
+npm run format            # Prettier format
+npm run eas:build:dev     # EAS development build
+npm run eas:build:preview # EAS preview build
+npm run eas:build:prod    # EAS production build
+npm run eas:update        # EAS Update (preview branch)
 ```
 
 ---
@@ -429,6 +508,46 @@ Edit build profiles in `eas.json`.
 
 ---
 
+## Environment Variables
+
+App config flows through `app.config.ts` → `extra` → `src/shared/config/env.ts`.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `API_URL` | `http://localhost:3000/api/v1` | Backend base URL |
+| `NODE_ENV` | `development` | Environment mode |
+| `DEBUG` | `false` | Debug flag |
+| `LOG_LEVEL` | `debug` | Log verbosity |
+| `APP_VERSION` | `1.0.0` | App version (iOS/Android) |
+
+**Firebase secrets** — never commit them (kept in `firebase/`, gitignored):
+
+| Variable | File |
+|----------|------|
+| `GOOGLE_SERVICE_INFO_PLIST` | `firebase/GoogleService-Info.plist` (iOS) |
+| `GOOGLE_SERVICES_JSON` | `firebase/google-services.json` (Android) |
+
+For EAS cloud builds, inject them as secrets:
+
+```bash
+eas secret:create --scope project --name GOOGLE_SERVICE_INFO_PLIST --type file --value ./firebase/GoogleService-Info.plist
+eas secret:create --scope project --name GOOGLE_SERVICES_JSON --type file --value ./firebase/google-services.json
+```
+
+---
+
+## Testing
+
+```bash
+npm test            # Vitest, run once
+npm run test:watch  # Vitest, watch mode
+```
+
+- Test files live next to source as `src/**/*.test.ts(x)`
+- `npm run typecheck` (0 errors) and `npm run lint` (0 errors) are **Hard Threshold** gates — see `CLAUDE.md`
+
+---
+
 ## Naming Conventions
 
 | Type | Prefix | Example |
@@ -465,6 +584,19 @@ feature/* ← Feature branches
 ```
 
 > Since cloud build credits are limited, catch Gradle/Xcode errors locally first.
+
+### EAS Build Profiles (`eas.json`)
+
+| Profile | Use |
+|---------|-----|
+| `development-simulator` | iOS Simulator dev build |
+| `development` | On-device dev build (dev client) |
+| `preview` | Internal distribution |
+| `production` | Store release (auto-increments build number) |
+
+### iOS — Firebase Static Build
+
+RN Firebase + RN 0.81 + New Architecture + static frameworks triggers 3 known iOS build errors. The bundled **`withRNFirebaseStaticBuild`** plugin fixes all of them automatically — keep it in `app.config.ts` plugins and run `npx expo prebuild --clean`. See [`docs/troubleshooting.md`](./docs/troubleshooting.md) and `CLAUDE.md` for details.
 
 ### .easignore Setup
 
