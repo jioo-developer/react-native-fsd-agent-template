@@ -13,6 +13,7 @@ import {
   AdDevPanel,
   initializeAdsWithConsent,
 } from '@/features/ads';
+import { useReviewStore } from '@/shared/store-review';
 import '../global.css';
 
 function AdLifecycleManager(): null {
@@ -31,6 +32,9 @@ export default function RootLayout(): React.JSX.Element {
         // Order matters: AdMob must initialize AFTER consent is gathered so the
         // first ad request reflects the user's tracking choice.
         await initializeAdsWithConsent();
+        // Hydrate persisted review counters, then count this launch.
+        await useReviewStore.persist.rehydrate();
+        useReviewStore.getState().recordLaunch();
         // TODO: Add auth initialization here
       } catch (error) {
         console.error('Failed to initialize:', error);

@@ -161,6 +161,7 @@ Phase 7: Deployment     /store-deploy → EAS Build → App Store / Google Play
 | Ads | react-native-google-mobile-ads 16 (UMP consent + ATT) |
 | Analytics | Firebase Analytics 24 (adapter, Expo Go 자동 no-op) |
 | Secure Storage | expo-secure-store (Keychain / Keystore) |
+| In-App Review | expo-store-review (policy-gated) |
 | i18n | i18n-js |
 | Build & Deploy | EAS Build / EAS Submit |
 
@@ -208,6 +209,22 @@ import { initAnalytics, logEvent, logScreenView } from '@shared/lib/analytics';
 ```ts
 import { api, tokenManager, setAuthFailureCallback } from '@shared/api';
 ```
+
+### 인앱 평점 (`src/shared/store-review/`)
+
+스토어 평점 요청을 중앙 정책 엔진으로 게이팅합니다 — `expo-store-review`를 직접 호출하지 않습니다. `maybeRequest()`는 **모든** 게이트를 통과할 때만 호출됩니다(설치 3일+, 실행 5회+, 핵심 액션 3회+, 마지막 요청 후 90일+, 연 3회 이하, 실행 직후 120초 쿨다운, UI idle, 최근 에러 없음).
+
+```ts
+import { useStoreReview, REVIEW_TRIGGERS } from '@shared/store-review';
+const { maybeRequest } = useStoreReview();
+// 긍정적 액션의 성공 콜백 안, UI가 idle일 때:
+await maybeRequest(REVIEW_TRIGGERS.AFTER_TASK_COMPLETE, { uiIsIdle: true });
+```
+
+- 정책 엔진(`canRequestReview`)은 순수 함수로 단위 테스트됨(`policy.test.ts`)
+- 트리거 ID는 `REVIEW_TRIGGERS`에서만(매직 스트링 금지), 매 요청은 `request_store_review` 로깅
+- 카운터는 AsyncStorage에 persist(비민감), `recordLaunch()`는 `_layout.tsx`에서 실행
+- 임계값·호출 위치는 앱마다 다름 — PRD에 맞게 배선
 
 ### Config Plugins (`plugins/`)
 
@@ -351,6 +368,7 @@ npm run android    # Android Emulator
 │       ├── config/                     # env, theme, ads (ad unit IDs)
 │       ├── lib/
 │       │   └── analytics/              # Firebase + no-op adapter (initAnalytics, logEvent)
+│       ├── store-review/               # In-app review policy engine + counters
 │       ├── types/                      # Common types
 │       └── ui/                         # UI components
 │

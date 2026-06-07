@@ -161,6 +161,7 @@ Designed based on [Anthropic's official Harness Engineering Guide](https://www.a
 | Ads | react-native-google-mobile-ads 16 (UMP consent + ATT) |
 | Analytics | Firebase Analytics 24 (adapter, auto no-op on Expo Go) |
 | Secure Storage | expo-secure-store (Keychain / Keystore) |
+| In-App Review | expo-store-review (policy-gated) |
 | i18n | i18n-js |
 | Build & Deploy | EAS Build / EAS Submit |
 
@@ -208,6 +209,22 @@ Auth tokens are kept in **Keychain / Keystore via `expo-secure-store`** (`tokenM
 ```ts
 import { api, tokenManager, setAuthFailureCallback } from '@shared/api';
 ```
+
+### In-App Review (`src/shared/store-review/`)
+
+Store-rating prompts are gated by a central policy engine — never call `expo-store-review` directly. `maybeRequest()` fires only when **every** gate passes (3+ days installed, 5+ launches, 3+ key actions, 90+ days since last ask, ≤3/year, 120s post-launch cooldown, UI idle, no recent error).
+
+```ts
+import { useStoreReview, REVIEW_TRIGGERS } from '@shared/store-review';
+const { maybeRequest } = useStoreReview();
+// In a positive action's success callback, while the UI is idle:
+await maybeRequest(REVIEW_TRIGGERS.AFTER_TASK_COMPLETE, { uiIsIdle: true });
+```
+
+- Policy engine (`canRequestReview`) is a pure, unit-tested function (`policy.test.ts`)
+- Trigger IDs come from `REVIEW_TRIGGERS` only (no magic strings); each request logs `request_store_review`
+- Counters persist in AsyncStorage (non-sensitive); `recordLaunch()` runs in `_layout.tsx`
+- Thresholds & call sites are app-specific — wire them per your PRD
 
 ### Config Plugins (`plugins/`)
 
@@ -351,6 +368,7 @@ npm run android    # Android Emulator
 │       ├── config/                     # env, theme, ads (ad unit IDs)
 │       ├── lib/
 │       │   └── analytics/              # Firebase + no-op adapter (initAnalytics, logEvent)
+│       ├── store-review/               # In-app review policy engine + counters
 │       ├── types/                      # Common types
 │       └── ui/                         # UI components
 │

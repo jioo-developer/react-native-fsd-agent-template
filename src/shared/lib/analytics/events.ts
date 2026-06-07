@@ -6,6 +6,7 @@ export const EAnalyticsEvent = {
   SCREEN_VIEW: 'screen_view',
   REWARDED_AD_COMPLETED: 'rewarded_ad_completed',
   INTERSTITIAL_AD_SHOWN: 'interstitial_ad_shown',
+  REQUEST_STORE_REVIEW: 'request_store_review',
 } as const;
 
 export type TAnalyticsEvent =
