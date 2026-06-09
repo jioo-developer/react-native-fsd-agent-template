@@ -3,6 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "jsx": "react-jsx",
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "resolveJsonModule": true,
     "paths": {
@@ -14,20 +15,6 @@
       "@shared/*": ["./src/shared/*"]
     }
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts",
-    "nativewind-env.d.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    ".expo",
-    "build-output",
-    "dist",
-    "_workspace",
-    ".claude",
-    "plugins"
-  ]
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts", "nativewind-env.d.ts"],
+  "exclude": ["node_modules", ".expo", "build-output", "dist", "_workspace", ".claude", "plugins"]
 }
